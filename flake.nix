@@ -19,11 +19,16 @@
     };
   };
 
-  outputs = inputs@{ flake-parts, ... }:
+  outputs =
+    inputs@{ flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      systems = [ "x86_64-linux" "aarch64-linux" ];
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
 
-      perSystem = { config, system, ... }:
+      perSystem =
+        { config, system, ... }:
         let
           versions = import ./nix/versions.nix;
 
@@ -113,10 +118,21 @@
             cuda = cuda;
           };
 
-          cutlass = pkgs.callPackage ./nix/pkgs/cutlass.nix { inherit versions; cuda = cuda; };
+          cutlass = pkgs.callPackage ./nix/pkgs/cutlass.nix {
+            inherit versions;
+            cuda = cuda;
+          };
 
           nvidia-sdk = pkgs.callPackage ./nix/pkgs/nvidia-sdk.nix {
-            inherit versions cuda cudnn nccl tensorrt cutlass cutensor;
+            inherit
+              versions
+              cuda
+              cudnn
+              nccl
+              tensorrt
+              cutlass
+              cutensor
+              ;
           };
 
           # ════════════════════════════════════════════════════════════════════
@@ -146,6 +162,12 @@
           python = pkgs.callPackage ./nix/pkgs/ngc-python.nix {
             containerSrc = ngcContainer;
             nvidia-sdk = nvidia-sdk;
+          };
+
+          # libtorch C++ library extracted from NGC python torch
+          # Enables hasktorch on aarch64-linux with GPU support
+          libtorch-bin = pkgs.callPackage ./nix/pkgs/libtorch.nix {
+            inherit python;
           };
 
           # ════════════════════════════════════════════════════════════════════
@@ -196,6 +218,7 @@
               cuda-merged
               tritonserver
               python
+              libtorch-bin
               cuda-samples
               nccl-tests
               validate-sdk
@@ -211,7 +234,11 @@
           };
 
           devShells.default = pkgs.mkShell {
-            packages = [ nvidia-sdk python agenix ];
+            packages = [
+              nvidia-sdk
+              python
+              agenix
+            ];
 
             shellHook = ''
               echo "nvidia-sdk — CUDA ${versions.cuda.version} — NGC ${versions.ngc.version}"
@@ -227,79 +254,91 @@
             # ── SDK structure ──────────────────────────────────────────────
             # Verifies the merged nvidia-sdk has headers, libraries,
             # setup-hook env vars, pkg-config, and version metadata.
-            sdk-structure = pkgs.runCommand "check-sdk-structure"
-              { nativeBuildInputs = [ nvidia-sdk pkgs.pkg-config ]; }
-              ''
-                echo "=== SDK structure check ==="
+            sdk-structure =
+              pkgs.runCommand "check-sdk-structure"
+                {
+                  nativeBuildInputs = [
+                    nvidia-sdk
+                    pkgs.pkg-config
+                  ];
+                }
+                ''
+                  echo "=== SDK structure check ==="
 
-                # setup-hook must set CUDA_PATH
-                test -n "$CUDA_PATH" || (echo "FAIL: CUDA_PATH not set by setup-hook" && exit 1)
-                echo "ok: CUDA_PATH=$CUDA_PATH"
+                  # setup-hook must set CUDA_PATH
+                  test -n "$CUDA_PATH" || (echo "FAIL: CUDA_PATH not set by setup-hook" && exit 1)
+                  echo "ok: CUDA_PATH=$CUDA_PATH"
 
-                # Headers
-                test -d "$CUDA_PATH/include" || (echo "FAIL: include/ missing" && exit 1)
-                for hdr in cuda.h cudnn.h nccl.h NvInfer.h cutensor.h; do
-                  test -f "$CUDA_PATH/include/$hdr" || (echo "FAIL: $hdr missing" && exit 1)
-                done
-                echo "ok: headers present"
+                  # Headers
+                  test -d "$CUDA_PATH/include" || (echo "FAIL: include/ missing" && exit 1)
+                  for hdr in cuda.h cudnn.h nccl.h NvInfer.h cutensor.h; do
+                    test -f "$CUDA_PATH/include/$hdr" || (echo "FAIL: $hdr missing" && exit 1)
+                  done
+                  echo "ok: headers present"
 
-                # Core libraries
-                for lib in cudart cublas cufft curand cusolver cusparse nvrtc cudnn nccl nvinfer cutensor; do
-                  ls "$CUDA_PATH/lib64/lib$lib"*.so* >/dev/null 2>&1 || (echo "FAIL: lib$lib.so missing" && exit 1)
-                done
-                echo "ok: core libraries present"
+                  # Core libraries
+                  for lib in cudart cublas cufft curand cusolver cusparse nvrtc cudnn nccl nvinfer cutensor; do
+                    ls "$CUDA_PATH/lib64/lib$lib"*.so* >/dev/null 2>&1 || (echo "FAIL: lib$lib.so missing" && exit 1)
+                  done
+                  echo "ok: core libraries present"
 
-                # Key binaries
-                for bin in nvcc ptxas fatbinary nvlink; do
-                  test -x "$CUDA_PATH/bin/$bin" || (echo "FAIL: $bin missing" && exit 1)
-                done
-                echo "ok: core binaries present"
+                  # Key binaries
+                  for bin in nvcc ptxas fatbinary nvlink; do
+                    test -x "$CUDA_PATH/bin/$bin" || (echo "FAIL: $bin missing" && exit 1)
+                  done
+                  echo "ok: core binaries present"
 
-                # pkg-config
-                pkg-config --validate nvidia-sdk || (echo "FAIL: nvidia-sdk.pc invalid" && exit 1)
-                echo "ok: pkg-config valid"
+                  # pkg-config
+                  pkg-config --validate nvidia-sdk || (echo "FAIL: nvidia-sdk.pc invalid" && exit 1)
+                  echo "ok: pkg-config valid"
 
-                # version.json
-                test -f "$CUDA_PATH/version.json" || (echo "FAIL: version.json missing" && exit 1)
-                echo "ok: version.json present"
+                  # version.json
+                  test -f "$CUDA_PATH/version.json" || (echo "FAIL: version.json missing" && exit 1)
+                  echo "ok: version.json present"
 
-                # validate script
-                test -x "$CUDA_PATH/bin/nvidia-sdk-validate" || (echo "FAIL: nvidia-sdk-validate missing" && exit 1)
-                echo "ok: nvidia-sdk-validate present"
+                  # validate script
+                  test -x "$CUDA_PATH/bin/nvidia-sdk-validate" || (echo "FAIL: nvidia-sdk-validate missing" && exit 1)
+                  echo "ok: nvidia-sdk-validate present"
 
-                echo "=== SDK structure: PASS ===" > $out
-              '';
+                  echo "=== SDK structure: PASS ===" > $out
+                '';
 
             # ── Version consistency ────────────────────────────────────────
             # Verifies that version.json inside the built SDK matches
             # the versions declared in nix/versions.nix.
-            version-consistency = pkgs.runCommand "check-version-consistency"
-              { nativeBuildInputs = [ nvidia-sdk pkgs.jq ]; }
-              ''
-                echo "=== Version consistency check ==="
-
-                json="$CUDA_PATH/version.json"
-                test -f "$json" || (echo "FAIL: version.json missing" && exit 1)
-
-                check() {
-                  local key="$1" expected="$2"
-                  actual=$(${pkgs.jq}/bin/jq -r ".$key" "$json")
-                  if [ "$actual" != "$expected" ]; then
-                    echo "FAIL: $key: expected '$expected', got '$actual'"
-                    exit 1
-                  fi
-                  echo "ok: $key=$actual"
+            version-consistency =
+              pkgs.runCommand "check-version-consistency"
+                {
+                  nativeBuildInputs = [
+                    nvidia-sdk
+                    pkgs.jq
+                  ];
                 }
+                ''
+                  echo "=== Version consistency check ==="
 
-                check cuda     "${versions.cuda.version}"
-                check cudnn    "${versions.cudnn.version}"
-                check nccl     "${versions.nccl.version}"
-                check tensorrt "${versions.tensorrt.version}"
-                check cutlass  "${versions.cutlass.version}"
-                check cutensor "${versions.cutensor.version}"
+                  json="$CUDA_PATH/version.json"
+                  test -f "$json" || (echo "FAIL: version.json missing" && exit 1)
 
-                echo "=== Version consistency: PASS ===" > $out
-              '';
+                  check() {
+                    local key="$1" expected="$2"
+                    actual=$(${pkgs.jq}/bin/jq -r ".$key" "$json")
+                    if [ "$actual" != "$expected" ]; then
+                      echo "FAIL: $key: expected '$expected', got '$actual'"
+                      exit 1
+                    fi
+                    echo "ok: $key=$actual"
+                  }
+
+                  check cuda     "${versions.cuda.version}"
+                  check cudnn    "${versions.cudnn.version}"
+                  check nccl     "${versions.nccl.version}"
+                  check tensorrt "${versions.tensorrt.version}"
+                  check cutlass  "${versions.cutlass.version}"
+                  check cutensor "${versions.cutensor.version}"
+
+                  echo "=== Version consistency: PASS ===" > $out
+                '';
 
             # ── LLVM NVPTX target ─────────────────────────────────────────
             # Verifies the custom LLVM build supports the NVPTX backend
@@ -352,55 +391,51 @@
 
             # ── Setup-hook env vars ───────────────────────────────────────
             # Verifies the setup-hook correctly exports all expected vars.
-            setup-hook = pkgs.runCommand "check-setup-hook"
-              { nativeBuildInputs = [ nvidia-sdk ]; }
-              ''
-                echo "=== Setup-hook check ==="
-                for var in CUDA_PATH CUDA_HOME CUDNN_HOME TENSORRT_HOME; do
-                  eval "val=\$$var"
-                  test -n "$val" || (echo "FAIL: $var not set" && exit 1)
-                  echo "ok: $var=$val"
-                done
-                echo "=== Setup-hook: PASS ===" > $out
-              '';
+            setup-hook = pkgs.runCommand "check-setup-hook" { nativeBuildInputs = [ nvidia-sdk ]; } ''
+              echo "=== Setup-hook check ==="
+              for var in CUDA_PATH CUDA_HOME CUDNN_HOME TENSORRT_HOME; do
+                eval "val=\$$var"
+                test -n "$val" || (echo "FAIL: $var not set" && exit 1)
+                echo "ok: $var=$val"
+              done
+              echo "=== Setup-hook: PASS ===" > $out
+            '';
 
             # ── Nsight tools ──────────────────────────────────────────────
             # Verifies Nsight Compute and Systems directories exist in
             # the SDK, and that the CLI wrappers (ncu, nsys) are present.
-            nsight-tools = pkgs.runCommand "check-nsight-tools"
-              { nativeBuildInputs = [ nvidia-sdk ]; }
-              ''
-                echo "=== Nsight tools check ==="
+            nsight-tools = pkgs.runCommand "check-nsight-tools" { nativeBuildInputs = [ nvidia-sdk ]; } ''
+              echo "=== Nsight tools check ==="
 
-                ncuDir="$CUDA_PATH/nsight-compute-${versions.nsight.compute.version}"
-                nsysDir="$CUDA_PATH/nsight-systems-${versions.nsight.systems.version}"
+              ncuDir="$CUDA_PATH/nsight-compute-${versions.nsight.compute.version}"
+              nsysDir="$CUDA_PATH/nsight-systems-${versions.nsight.systems.version}"
 
-                # Nsight Compute directory
-                test -d "$ncuDir" || (echo "FAIL: $ncuDir missing" && exit 1)
-                echo "ok: nsight-compute directory exists"
+              # Nsight Compute directory
+              test -d "$ncuDir" || (echo "FAIL: $ncuDir missing" && exit 1)
+              echo "ok: nsight-compute directory exists"
 
-                # Nsight Systems directory
-                test -d "$nsysDir" || (echo "FAIL: $nsysDir missing" && exit 1)
-                echo "ok: nsight-systems directory exists"
+              # Nsight Systems directory
+              test -d "$nsysDir" || (echo "FAIL: $nsysDir missing" && exit 1)
+              echo "ok: nsight-systems directory exists"
 
-                # CLI wrappers
-                test -x "$CUDA_PATH/bin/ncu"  || (echo "FAIL: ncu binary missing" && exit 1)
-                echo "ok: ncu binary present"
+              # CLI wrappers
+              test -x "$CUDA_PATH/bin/ncu"  || (echo "FAIL: ncu binary missing" && exit 1)
+              echo "ok: ncu binary present"
 
-                test -x "$CUDA_PATH/bin/nsys" || (echo "FAIL: nsys binary missing" && exit 1)
-                echo "ok: nsys binary present"
+              test -x "$CUDA_PATH/bin/nsys" || (echo "FAIL: nsys binary missing" && exit 1)
+              echo "ok: nsys binary present"
 
-                # Host binaries in arch-specific paths
-                ncuHost="$ncuDir/${versions.nsight.compute.${system}.path}"
-                test -d "$ncuHost" || (echo "FAIL: ncu host dir missing: $ncuHost" && exit 1)
-                echo "ok: ncu host path exists ($ncuHost)"
+              # Host binaries in arch-specific paths
+              ncuHost="$ncuDir/${versions.nsight.compute.${system}.path}"
+              test -d "$ncuHost" || (echo "FAIL: ncu host dir missing: $ncuHost" && exit 1)
+              echo "ok: ncu host path exists ($ncuHost)"
 
-                nsysHost="$nsysDir/${versions.nsight.systems.${system}.path}"
-                test -d "$nsysHost" || (echo "FAIL: nsys host dir missing: $nsysHost" && exit 1)
-                echo "ok: nsys host path exists ($nsysHost)"
+              nsysHost="$nsysDir/${versions.nsight.systems.${system}.path}"
+              test -d "$nsysHost" || (echo "FAIL: nsys host dir missing: $nsysHost" && exit 1)
+              echo "ok: nsys host path exists ($nsysHost)"
 
-                echo "=== Nsight tools: PASS ===" > $out
-              '';
+              echo "=== Nsight tools: PASS ===" > $out
+            '';
 
             # ── Platform arch consistency ─────────────────────────────────
             # Verifies that the platform helper produces a valid cudaArch
@@ -421,22 +456,23 @@
             '';
 
             # ── Python imports (NGC packages) ─────────────────────────────
-            python-imports = pkgs.runCommand "check-python-imports"
-              {
-                nativeBuildInputs = [ python ];
-                LD_LIBRARY_PATH = "${nvidia-sdk}/lib64";
-              }
-              ''
-                export HOME=$(mktemp -d)
-                ${python}/bin/python3 -c "
-                import sys
-                print('Python:', sys.version)
-                import numpy; print('numpy:', numpy.__version__)
-                import torch; print('torch:', torch.__version__)
-                print('CUDA available:', torch.cuda.is_available())
-                "
-                echo "Python imports: ok" > $out
-              '';
+            python-imports =
+              pkgs.runCommand "check-python-imports"
+                {
+                  nativeBuildInputs = [ python ];
+                  LD_LIBRARY_PATH = "${nvidia-sdk}/lib64";
+                }
+                ''
+                  export HOME=$(mktemp -d)
+                  ${python}/bin/python3 -c "
+                  import sys
+                  print('Python:', sys.version)
+                  import numpy; print('numpy:', numpy.__version__)
+                  import torch; print('torch:', torch.__version__)
+                  print('CUDA available:', torch.cuda.is_available())
+                  "
+                  echo "Python imports: ok" > $out
+                '';
           };
 
           apps = {
@@ -513,7 +549,8 @@
         };
 
       flake = {
-        overlays.default = final: prev:
+        overlays.default =
+          final: prev:
           let
             versions = import ./nix/versions.nix;
             modern = (import ./nix/modern.nix final prev).modern;
@@ -577,7 +614,10 @@
               cuda = final.cuda;
             };
 
-            cutlass = final.callPackage ./nix/pkgs/cutlass.nix { inherit versions; cuda = final.cuda; };
+            cutlass = final.callPackage ./nix/pkgs/cutlass.nix {
+              inherit versions;
+              cuda = final.cuda;
+            };
 
             nvidia-sdk = final.callPackage ./nix/pkgs/nvidia-sdk.nix {
               inherit versions;
@@ -617,6 +657,12 @@
                 containerSrc = container;
                 nvidia-sdk = final.nvidia-sdk;
               };
+
+            # libtorch C++ library extracted from NGC python torch
+            # Enables hasktorch on aarch64-linux with GPU support
+            libtorch-bin = final.callPackage ./nix/pkgs/libtorch.nix {
+              python = final.python;
+            };
 
             cuda-samples = final.callPackage ./nix/pkgs/cuda-samples.nix {
               inherit versions;
