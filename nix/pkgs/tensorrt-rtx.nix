@@ -18,7 +18,8 @@ extract.extract {
   version = versions.tensorrt-rtx.version;
 
   src = fetchurl {
-    url = src-info.urls.mirror;
+    # Live NVIDIA upstream redistributable.
+    url = src-info.urls.upstream;
     hash = src-info.hash;
   };
 

@@ -1,9 +1,10 @@
-{ lib
-, stdenv
-, fetchurl
-, autoPatchelfHook
-, versions
-, cuda
+{
+  lib,
+  stdenv,
+  fetchurl,
+  autoPatchelfHook,
+  versions,
+  cuda,
 }:
 
 stdenv.mkDerivation {
@@ -11,14 +12,20 @@ stdenv.mkDerivation {
   version = versions.nccl.version;
 
   src = fetchurl {
-    url = versions.nccl.${stdenv.hostPlatform.system}.urls.mirror;
+    # Live NVIDIA upstream redistributable (CUDA 13 .txz).
+    url = versions.nccl.${stdenv.hostPlatform.system}.urls.upstream;
     hash = versions.nccl.${stdenv.hostPlatform.system}.hash;
   };
 
   nativeBuildInputs = [ autoPatchelfHook ];
-  buildInputs = [ stdenv.cc.cc.lib cuda ];
+  buildInputs = [
+    stdenv.cc.cc.lib
+    cuda
+  ];
 
-  sourceRoot = ".";
+  # The redist .txz unpacks to a single top-level nccl_<ver>+cuda13.0_<arch>/
+  # directory; let the unpacker cd into it so lib/include are at the root.
+  setSourceRoot = "sourceRoot=$(echo nccl_*)";
   dontConfigure = true;
   dontBuild = true;
 
@@ -54,6 +61,9 @@ stdenv.mkDerivation {
     description = "NVIDIA NCCL ${versions.nccl.version}";
     homepage = "https://developer.nvidia.com/nccl";
     license = lib.licenses.bsd3;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
   };
 }

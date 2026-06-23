@@ -41,7 +41,6 @@
     version = "9.17.0.29";
     x86_64-linux = {
       urls = {
-        mirror = "https://nvidia-redistributable.weyl.ai/cudnn/cudnn-linux-x86_64-9.17.0.29_cuda13-archive.tar.xz";
         upstream = "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-9.17.0.29_cuda13-archive.tar.xz";
       };
       hash = "sha256-RV8VB1STyCoaiFCq5hIPP6b35FfL71bByy4KYYtbUJ4=";
@@ -49,30 +48,29 @@
 
     aarch64-linux = {
       urls = {
-        mirror = "https://nvidia-redistributable.weyl.ai/cudnn/cudnn-linux-sbsa-9.17.0.29_cuda13-archive.tar.xz";
         upstream = "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-sbsa/cudnn-linux-sbsa-9.17.0.29_cuda13-archive.tar.xz";
       };
       hash = "sha256-Gb5tjytjpFnmdYGFwej+7d7NtLVnF9xOS7z+MKBhm30=";
     };
   };
 
+  # NCCL: NVIDIA's own redist .txz (top-level nccl_<ver>+cuda13.0_<arch>/{lib,include}).
+  # CUDA 13 build to match the 13.1 toolkit. Hashes are the live upstream tarballs.
   nccl = {
     version = "2.28.9";
 
     x86_64-linux = {
       urls = {
-        mirror = "https://nvidia-redistributable.weyl.ai/nccl/nccl_2.28.9-1+cuda12.0_x86_64.txz";
-        upstream = "https://files.pythonhosted.org/packages/4a/4e/44dbb46b3d1b0ec61afda8e84837870f2f9ace33c564317d59b70bc19d3e/nvidia_nccl_cu12-2.28.9-py3-none-manylinux_2_18_x86_64.whl";
+        upstream = "https://developer.download.nvidia.com/compute/redist/nccl/v2.28.9/nccl_2.28.9-1+cuda13.0_x86_64.txz";
       };
-      hash = "sha256-Ta9tHpdQVel+xb22iGc+A2OwYSnAiT2UtdVNLs1zDTw=";
+      hash = "sha256-Gu0BXAcRTd8E7Zl8vIfx0GgLbJHSKwPJpniqqfbJBU0=";
     };
 
     aarch64-linux = {
       urls = {
-        mirror = "https://nvidia-redistributable.weyl.ai/nccl/nccl_2.28.9-1+cuda12.0_aarch64.txz";
-        upstream = "https://files.pythonhosted.org/packages/08/c4/120d2dfd92dff2c776d68f361ff8705fdea2ca64e20b612fab0fd3f581ac/nvidia_nccl_cu12-2.28.9-py3-none-manylinux_2_18_aarch64.whl";
+        upstream = "https://developer.download.nvidia.com/compute/redist/nccl/v2.28.9/nccl_2.28.9-1+cuda13.0_aarch64.txz";
       };
-      hash = "sha256-ubC3CGU4LFA7bLIz3RPkKJSh1dDA9oMSSgkFkpeQxzs=";
+      hash = "sha256-LITc7nR6VSuh+Fjn26ZvKwt6k/ScEncvKcvEnq0mypw=";
     };
   };
 
@@ -81,7 +79,6 @@
 
     x86_64-linux = {
       urls = {
-        mirror = "https://nvidia-redistributable.weyl.ai/TensorRT-10.15.1.29.Linux.x86_64-gnu.cuda-13.1.tar.gz";
         upstream = "https://developer.download.nvidia.com/compute/machine-learning/tensorrt/10.15.1/tars/TensorRT-10.15.1.29.Linux.x86_64-gnu.cuda-13.1.tar.gz";
       };
 
@@ -90,7 +87,6 @@
 
     aarch64-linux = {
       urls = {
-        mirror = "https://nvidia-redistributable.weyl.ai/TensorRT-10.15.1.29.Linux.aarch64-gnu.cuda-13.1.tar.gz";
         upstream = "https://developer.download.nvidia.com/compute/machine-learning/tensorrt/10.15.1/tars/TensorRT-10.15.1.29.Linux.aarch64-gnu.cuda-13.1.tar.gz";
       };
 
@@ -98,16 +94,12 @@
     };
   };
 
-
-
-
   tensorrt-rtx = {
     version = "1.2.0.54";
 
     # TensorRT-RTX is x86-64 only (no ARM/SBSA support)
     x86_64-linux = {
       urls = {
-        mirror = "https://nvidia-redistributable.weyl.ai/tensorrt-rtx/TensorRT-RTX-1.2.0.54-Linux-x86_64-cuda-13.0-Release-external.tar.gz";
         upstream = "https://developer.nvidia.com/downloads/tensorrt-rtx-1-2-0-54-linux-x86-64-cuda-13-0-release-external";
       };
 
@@ -120,7 +112,6 @@
 
     x86_64-linux = {
       urls = {
-        mirror = "https://nvidia-redistributable.weyl.ai/libcutensor/libcutensor-linux-x86_64-2.4.1.4_cuda13-archive.tar.xz";
         upstream = "https://developer.download.nvidia.com/compute/cutensor/redist/libcutensor/linux-x86_64/libcutensor-linux-x86_64-2.4.1.4_cuda13-archive.tar.xz";
       };
       hash = "sha256-IfsKmjt7ZmMiNme1h/KrHFTkphyXX+oPnU9W2cM/Mf4=";
@@ -128,7 +119,6 @@
 
     aarch64-linux = {
       urls = {
-        mirror = "https://nvidia-redistributable.weyl.ai/libcutensor/libcutensor-linux-sbsa-2.4.1.4_cuda13-archive.tar.xz";
         upstream = "https://developer.download.nvidia.com/compute/cutensor/redist/libcutensor/linux-sbsa/libcutensor-linux-sbsa-2.4.1.4_cuda13-archive.tar.xz";
       };
       hash = "sha256-m6/9Nli39NotL5TSPDrN220SximX09o5p3SgWP7wSqU=";
@@ -192,21 +182,21 @@
 
   sm = {
     # Consumer / Workstation (x86_64)
-    turing = "sm_75";          # RTX 20xx, GTX 16xx, Quadro RTX
-    ampere = "sm_86";          # RTX 30xx, A-series workstation
-    ada = "sm_89";             # RTX 40xx, L4, L40, RTX 6000 Ada
-    blackwell-rtx = "sm_120";  # RTX 50xx (x86_64 only)
+    turing = "sm_75"; # RTX 20xx, GTX 16xx, Quadro RTX
+    ampere = "sm_86"; # RTX 30xx, A-series workstation
+    ada = "sm_89"; # RTX 40xx, L4, L40, RTX 6000 Ada
+    blackwell-rtx = "sm_120"; # RTX 50xx (x86_64 only)
 
     # Data Center
-    volta = "sm_70";           # V100
-    ampere-dc = "sm_80";      # A100, A30
-    hopper = "sm_90";         # H100, H200, GH200
-    blackwell-dc = "sm_100";  # B100, B200, GB200 (SBSA aarch64)
-    blackwell-gb = "sm_121";  # GB12 (SBSA aarch64)
+    volta = "sm_70"; # V100
+    ampere-dc = "sm_80"; # A100, A30
+    hopper = "sm_90"; # H100, H200, GH200
+    blackwell-dc = "sm_100"; # B100, B200, GB200 (SBSA aarch64)
+    blackwell-gb = "sm_121"; # GB12 (SBSA aarch64)
 
     # Jetson / Tegra
-    xavier = "sm_72";         # Jetson AGX Xavier
-    orin = "sm_87";           # Jetson Orin
+    xavier = "sm_72"; # Jetson AGX Xavier
+    orin = "sm_87"; # Jetson Orin
   };
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -218,12 +208,12 @@
 
     x86_64-linux = {
       url = "https://us.download.nvidia.com/XFree86/Linux-x86_64/590.44.01/NVIDIA-Linux-x86_64-590.44.01.run";
-      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";  # TODO: fetch
+      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # TODO: fetch
     };
 
     aarch64-linux = {
       url = "https://us.download.nvidia.com/XFree86/Linux-aarch64/590.44.01/NVIDIA-Linux-aarch64-590.44.01.run";
-      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";  # TODO: fetch
+      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # TODO: fetch
     };
 
     # Open kernel module hashes (Turing+)
