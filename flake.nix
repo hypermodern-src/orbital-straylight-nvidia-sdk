@@ -7,8 +7,11 @@
   };
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:sensenet-ai/nixpkgs";
     flake-parts.url = "github:hercules-ci/flake-parts";
+    # Global pin: force flake-parts' own nixpkgs-lib onto our single
+    # sensenet-ai/nixpkgs so no other nixpkgs revision enters the closure.
+    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
