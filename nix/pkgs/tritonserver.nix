@@ -164,16 +164,22 @@ let
   # is searched before the loader's own glibc, so a container libc.so.6 there
   # shadows the Nix glibc and crashes startup (__nptl_change_stack_perm,
   # GLIBC_PRIVATE). Ordinary deps are already resolved via ELF RPATH.
-  wrapperLibPaths = lib.concatStringsSep ":" [
-    "${placeholder "out"}/lib"
-    "${placeholder "out"}/tensorrt_llm/lib"
-    "${placeholder "out"}/tensorrt_llm/libs"
-    "${placeholder "out"}/tensorrt_llm/libs/ucx"
-    "${placeholder "out"}/tensorrt_llm/libs/ucx/ucx"
-    "${containerSrc}/opt/hpcx/ompi/lib"
-    "${containerSrc}/opt/hpcx/ucc/lib"
-    "${containerSrc}/opt/hpcx/ucx/lib"
-  ];
+  wrapperLibPaths = lib.concatStringsSep ":" (
+    [
+      "${placeholder "out"}/lib"
+      "${placeholder "out"}/tensorrt_llm/lib"
+      "${placeholder "out"}/tensorrt_llm/libs"
+      "${placeholder "out"}/tensorrt_llm/libs/ucx"
+      "${placeholder "out"}/tensorrt_llm/libs/ucx/ucx"
+      "${containerSrc}/opt/hpcx/ompi/lib"
+      "${containerSrc}/opt/hpcx/ucc/lib"
+      "${containerSrc}/opt/hpcx/ucx/lib"
+    ]
+    # nixpkgs runtime deps (liblzma/zlib/openssl/… ) — safe, glibc-free. This is
+    # mk-runpath over runtime-inputs *without* containerSrc, so the container's
+    # /lib (glibc) is never on LD_LIBRARY_PATH.
+    ++ [ (modern.mk-runpath runtime-inputs) ]
+  );
 
   version = versions.triton-trtllm-container.version;
 
