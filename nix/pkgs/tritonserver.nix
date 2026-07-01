@@ -237,6 +237,17 @@ stdenv.mkDerivation {
     # libb64
     find $src -name "libb64.so*" -type f 2>/dev/null -exec cp -a {} $out/lib/ \;
 
+    # libgdrapi — GPUDirect RDMA (GPU<->NIC fast path over the ConnectX/QSFP
+    # fabric). Copy the specific lib out of the container's arch libdir into
+    # $out/lib; we must NOT put that whole libdir on the search path because it
+    # also contains the container's glibc (see preFixup note).
+    find $src -path "*-linux-gnu/libgdrapi.so*" -type f 2>/dev/null -exec cp -a {} $out/lib/ \;
+    ( cd $out/lib; for g in libgdrapi.so.*; do
+        [ -f "$g" ] || continue
+        ln -sf "$g" libgdrapi.so.2 2>/dev/null || true
+        ln -sf libgdrapi.so.2 libgdrapi.so 2>/dev/null || true
+      done )
+
     # libdcgm* and libdcgmmoduleconfig*
     find $src -path "*/libdcgm*.so*" -type f 2>/dev/null | while read -r f; do
       echo "Copying DCGM lib from $f"
@@ -377,15 +388,14 @@ stdenv.mkDerivation {
       ${containerSrc}/opt/hpcx/ucx/lib; do
       [ -d "$d" ] && addAutoPatchelfSearchPath "$d"
     done
-    # Container arch libdirs carry GPUDirect RDMA (libgdrapi — the GPU↔NIC fast
-    # path over the ConnectX/QSFP fabric) and MKL (torch linalg backend, x86).
-    # mk-runpath only exposes ${containerSrc}/lib{,64}, so add these explicitly.
-    for d in \
-      ${containerSrc}/usr/lib/x86_64-linux-gnu \
-      ${containerSrc}/usr/lib/aarch64-linux-gnu \
-      ${containerSrc}/usr/local/lib; do
-      [ -d "$d" ] && addAutoPatchelfSearchPath "$d"
-    done
+    # MKL (torch linalg backend) lives in the container's /usr/local/lib. That
+    # dir has no glibc/core libs, so it is safe to expose directly.
+    [ -d "${containerSrc}/usr/local/lib" ] && addAutoPatchelfSearchPath ${containerSrc}/usr/local/lib
+    # NOTE: do NOT addAutoPatchelfSearchPath the container's /usr/lib/<arch> or
+    # /lib/<arch> — those carry the container's glibc (libc.so.6, libpthread),
+    # which would land on RPATH ahead of the Nix glibc and crash at startup with
+    # "undefined symbol: __nptl_change_stack_perm, version GLIBC_PRIVATE".
+    # libgdrapi is copied out selectively in installPhase instead.
     ${modern.patch-elf {
       inherit runpath;
       out = "$out";
