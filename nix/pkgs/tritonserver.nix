@@ -442,21 +442,24 @@ stdenv.mkDerivation {
     # rootfs arch-libdir entry from every ELF; the fabric/CUDA libs we actually
     # need are already resolved from $out/lib, nvidia-sdk, and /opt/hpcx.
     echo "Stripping container arch libdirs from RUNPATHs..."
-    # NB: read via readelf, not `patchelf --print-rpath` — these binaries use
-    # DT_RUNPATH and this patchelf's --print-rpath returns empty for them,
-    # which previously made this pass a silent no-op.
-    find $out -type f \( -name "*.so*" -o -perm -0100 \) 2>/dev/null | while read -r f; do
-      rp=$(readelf -d "$f" 2>/dev/null | grep -E "RUNPATH|RPATH" | sed -E 's/.*\[(.*)\]/\1/') || continue
-      [ -z "$rp" ] && continue
-      case "$rp" in
-        *-linux-gnu*)
-          clean=$(echo "$rp" | tr ':' '\n' \
-            | grep -vE 'rootfs/(lib|usr/lib)/(aarch64|x86_64)-linux-gnu' \
-            | paste -sd: -)
-          patchelf --set-rpath "$clean" "$f" 2>/dev/null || true
-          ;;
-      esac
-    done
+    # Guarded so it can never fail the build (set -e safe). Reads DT_RUNPATH via
+    # readelf (this patchelf's --print-rpath returns empty for RUNPATH-only ELFs).
+    strip_container_rpaths() {
+      local f rp clean
+      while IFS= read -r f; do
+        rp=$(readelf -d "$f" 2>/dev/null | grep -E "RUNPATH|RPATH" | sed -E 's/.*\[(.*)\]/\1/' || true)
+        [ -z "$rp" ] && continue
+        case "$rp" in
+          *-linux-gnu*)
+            clean=$(printf '%s' "$rp" | tr ':' '\n' \
+              | grep -vE 'rootfs/(lib|usr/lib)/(aarch64|x86_64)-linux-gnu' \
+              | paste -sd: - || true)
+            patchelf --set-rpath "$clean" "$f" 2>/dev/null || true
+            ;;
+        esac
+      done
+    }
+    find "$out" -type f \( -name "*.so*" -o -perm -0100 \) 2>/dev/null | strip_container_rpaths || true
     # LD_LIBRARY_PATH set from wrapperLibPaths (glibc-free) — see binding above.
 
     for exe in $out/bin/*; do
