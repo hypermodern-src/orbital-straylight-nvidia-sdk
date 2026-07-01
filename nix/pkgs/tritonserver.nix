@@ -425,7 +425,16 @@ stdenv.mkDerivation {
     }}
   '';
 
+  # We invoke autoPatchelf manually in postFixup so the RUNPATH
+  # sanitizer runs *after* it (autoPatchelf re-adds container arch
+  # libdirs otherwise). Disable the automatic postFixup hook.
+  dontAutoPatchelf = true;
+
   postFixup = ''
+    # Run autoPatchelf first (auto-hook disabled via dontAutoPatchelf),
+    # THEN sanitize RUNPATHs, THEN wrap — strip must not be re-clobbered.
+    autoPatchelf "$out"
+
     # Sanitize RUNPATHs: autoPatchelf/patch-elf can record the container's arch
     # libdirs (…/ngc-26.06-rootfs/{lib,usr/lib}/<arch>) — which hold the
     # container glibc — into RUNPATH, where they shadow the Nix loader's glibc
