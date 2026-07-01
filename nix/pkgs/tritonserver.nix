@@ -3,77 +3,80 @@
 # Extracted from the canonical NGC container.
 # Includes all backends: TensorRT, TensorRT-LLM, Python, ONNX, etc.
 
-{
-  lib,
-  stdenv,
-  fetchurl,
-  autoPatchelfHook,
-  modern,
-  file,
-  findutils,
-  gnugrep,
-  patchelf,
-  makeWrapper,
-  python312,
-  abseil-cpp,
-  acl,
-  audit,
-  boost,
-  bzip2,
-  curl,
-  cyrus_sasl,
-  db,
-  dbus,
-  e2fsprogs,
-  expat,
-  gdbm,
-  glib,
-  gnutls,
-  gperftools,
-  grpc,
-  icu,
-  keyutils,
-  libarchive,
-  libbsd,
-  libcap,
-  libcap_ng,
-  libevent,
-  libffi,
-  libgcrypt,
-  libgpg-error,
-  libkrb5,
-  libmd,
-  libselinux,
-  libsemanage,
-  libsepol,
-  libssh,
-  libuuid,
-  libxcrypt,
-  libxml2,
-  lz4,
-  ncurses,
-  nettle,
-  numactl,
-  openldap,
-  # openmpi - use container's MPI to avoid nixpkgs CUDA dep chain
-  openssl,
-  pam,
-  pcre,
-  pcre2,
-  protobuf,
-  rapidjson,
-  re2,
-  readline,
-  rtmpdump,
-  systemd,
-  containerSrc,
-  tzdata,
-  util-linux,
-  versions,
-  xz,
-  zlib,
-  nvidia-sdk,
-  backend ? "trtllm",  # Default to TRT-LLM (the full package)
+{ lib
+, stdenv
+, fetchurl
+, autoPatchelfHook
+, modern
+, file
+, findutils
+, gnugrep
+, patchelf
+, makeWrapper
+, python312
+, abseil-cpp
+, acl
+, audit
+, boost
+, bzip2
+, curl
+, cyrus_sasl
+, db
+, dbus
+, e2fsprogs
+, expat
+, gdbm
+, glib
+, gnutls
+, gperftools
+, grpc
+, icu
+, keyutils
+, libarchive
+, libbsd
+, libcap
+, libcap_ng
+, libevent
+, libffi
+, libgcrypt
+, libgpg-error
+, libkrb5
+, libmd
+, libselinux
+, libsemanage
+, libsepol
+, libssh
+, libuuid
+, libxcrypt
+, libxml2
+, lz4
+, ncurses
+, nettle
+, numactl
+, rdma-core # libibverbs/libmlx5/librdmacm — RDMA over the ConnectX/QSFP fabric
+, ucx # libuct/libucp/libucs — UCX transports used by NCCL/TRT-LLM multi-node
+, zeromq # libzmq — used by the TRT-LLM UCX wrapper
+, openldap
+, # openmpi - use container's MPI to avoid nixpkgs CUDA dep chain
+  openssl
+, pam
+, pcre
+, pcre2
+, protobuf
+, rapidjson
+, re2
+, readline
+, rtmpdump
+, systemd
+, containerSrc
+, tzdata
+, util-linux
+, versions
+, xz
+, zlib
+, nvidia-sdk
+, backend ? "trtllm"
+, # Default to TRT-LLM (the full package)
   ...
 }:
 
@@ -129,6 +132,9 @@ let
     ncurses
     nettle
     numactl
+    rdma-core
+    ucx
+    zeromq
     nvidia-sdk
     openldap
     # openmpi - container has its own, avoid nixpkgs CUDA chain
@@ -205,13 +211,28 @@ stdenv.mkDerivation {
       eval "$extra"
     }
 
-    # libcupti
-    copy_one "libcupti.so*" '
+    # libcupti — MUST come from the container's CUDA (13.1), not the 13.3
+    # toolkit. torch's profiler is built against the container CUPTI's
+    # version-symbols; the 13.3 toolkit's libcupti.so.13 satisfies the soname
+    # but fails the versioned-symbol check at load. Prefer the real versioned
+    # file under the container's cuda-*/targets tree.
+    cupti_src=$(find $src/usr/local/cuda-*/targets/*/lib -name "libcupti.so.2*" -type f 2>/dev/null | head -1 || true)
+    if [ -n "$cupti_src" ]; then
+      echo "Copying container CUPTI from $cupti_src"
+      cp -a "$cupti_src" $out/lib/
       ( cd $out/lib;
-        ln -sf "$base" libcupti.so.13 || true
-        ln -sf "$base" libcupti.so || true
+        b=$(basename "$cupti_src");
+        ln -sf "$b" libcupti.so.13 || true
+        ln -sf "$b" libcupti.so || true
       )
-    '
+    else
+      copy_one "libcupti.so*" '
+        ( cd $out/lib;
+          ln -sf "$base" libcupti.so.13 || true
+          ln -sf "$base" libcupti.so || true
+        )
+      '
+    fi
 
     # libb64
     find $src -name "libb64.so*" -type f 2>/dev/null -exec cp -a {} $out/lib/ \;
@@ -274,10 +295,19 @@ stdenv.mkDerivation {
 
     [ -d $out/lib ] && [ ! -e $out/lib64 ] && ln -s lib $out/lib64
 
-    # tensorrt_llm
+    # tensorrt_llm — /opt/tensorrt_llm in <=25.12; moved into the venv
+    # site-packages in NGC 26.06 (/opt/venv-tritonserver/.../tensorrt_llm,
+    # with the .so's under a libs/ subdir).
     if [ -d $src/opt/tensorrt_llm ]; then
       mkdir -p $out/tensorrt_llm
       cp -a $src/opt/tensorrt_llm/* $out/tensorrt_llm/
+      chmod -R u+w $out/tensorrt_llm
+    elif [ -d $src/opt/venv-tritonserver/lib/python3.12/site-packages/tensorrt_llm ]; then
+      mkdir -p $out/tensorrt_llm/lib
+      cp -a $src/opt/venv-tritonserver/lib/python3.12/site-packages/tensorrt_llm/* $out/tensorrt_llm/
+      if [ -d $out/tensorrt_llm/libs ]; then
+        cp -a $out/tensorrt_llm/libs/*.so* $out/tensorrt_llm/lib/ 2>/dev/null || true
+      fi
       chmod -R u+w $out/tensorrt_llm
     fi
 
@@ -285,7 +315,8 @@ stdenv.mkDerivation {
     for pydir in \
       $src/usr/lib/python3/dist-packages \
       $src/usr/local/lib/python3.12/dist-packages \
-      $src/opt/tritonserver/python
+      $src/opt/tritonserver/python \
+      $src/opt/venv-tritonserver/lib/python3.12/site-packages
     do
       [ -d "$pydir" ] && cp -a "$pydir"/* $out/python/ 2>/dev/null || true
     done
@@ -334,6 +365,27 @@ stdenv.mkDerivation {
     if [ -d "$out/tensorrt_llm/lib" ]; then
       addAutoPatchelfSearchPath $out/tensorrt_llm/lib
     fi
+    if [ -d "$out/tensorrt_llm/libs" ]; then
+      addAutoPatchelfSearchPath $out/tensorrt_llm/libs
+    fi
+    # NGC 26.06 ships the HPC-X stack (OpenMPI libmpi.so.40, UCC libucc.so.1
+    # for collectives, UCX transports) under /opt/hpcx — load-bearing for
+    # multi-node collectives across the fabric.
+    for d in \
+      ${containerSrc}/opt/hpcx/ompi/lib \
+      ${containerSrc}/opt/hpcx/ucc/lib \
+      ${containerSrc}/opt/hpcx/ucx/lib; do
+      [ -d "$d" ] && addAutoPatchelfSearchPath "$d"
+    done
+    # Container arch libdirs carry GPUDirect RDMA (libgdrapi — the GPU↔NIC fast
+    # path over the ConnectX/QSFP fabric) and MKL (torch linalg backend, x86).
+    # mk-runpath only exposes ${containerSrc}/lib{,64}, so add these explicitly.
+    for d in \
+      ${containerSrc}/usr/lib/x86_64-linux-gnu \
+      ${containerSrc}/usr/lib/aarch64-linux-gnu \
+      ${containerSrc}/usr/local/lib; do
+      [ -d "$d" ] && addAutoPatchelfSearchPath "$d"
+    done
     ${modern.patch-elf {
       inherit runpath;
       out = "$out";
