@@ -278,8 +278,22 @@ let
     postFixup = modern.verify-closure {
       out = "$out";
       outIsBundle = true;
-      systemFloor = [ "${nvidia-sdk}/lib64" "${nvidia-sdk}/lib" "${python}/lib" ];
-      ignore = [ "libcuda.so.1" "libnvidia-ml.so.1" "libnvidia-*.so*" ];
+      systemFloor = [
+        "${nvidia-sdk}/lib64"
+        "${nvidia-sdk}/lib"
+        "${python}/lib"
+        "${stdenv.cc.cc.lib}/lib" # libstdc++.so.6 / libgcc_s.so.1
+        "${openssl.out}/lib" # libcrypto.so.3 / libssl.so.3
+        "${ncurses}/lib" # libtinfo.so.6
+      ];
+      ignore = [
+        "libcuda.so.1"
+        "libnvidia-ml.so.1"
+        "libnvidia-*.so*"
+        # Mellanox HCOLL collective offload — optional, host-provided when present
+        # (same rationale as the autoPatchelfIgnoreMissingDeps entry above).
+        "libhcoll.so*"
+      ];
     };
 
     meta = {
