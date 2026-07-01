@@ -159,6 +159,22 @@ let
   # include containerSrc so its /usr/lib* get onto RPATH as well
   runpath = modern.mk-runpath (runtime-inputs ++ [ containerSrc ]);
 
+  # Wrapper LD_LIBRARY_PATH: only the dirs holding runtime-dlopen'd fabric libs.
+  # Must NOT include ${containerSrc}/lib (the container glibc) — LD_LIBRARY_PATH
+  # is searched before the loader's own glibc, so a container libc.so.6 there
+  # shadows the Nix glibc and crashes startup (__nptl_change_stack_perm,
+  # GLIBC_PRIVATE). Ordinary deps are already resolved via ELF RPATH.
+  wrapperLibPaths = lib.concatStringsSep ":" [
+    "${placeholder "out"}/lib"
+    "${placeholder "out"}/tensorrt_llm/lib"
+    "${placeholder "out"}/tensorrt_llm/libs"
+    "${placeholder "out"}/tensorrt_llm/libs/ucx"
+    "${placeholder "out"}/tensorrt_llm/libs/ucx/ucx"
+    "${containerSrc}/opt/hpcx/ompi/lib"
+    "${containerSrc}/opt/hpcx/ucc/lib"
+    "${containerSrc}/opt/hpcx/ucx/lib"
+  ];
+
   version = versions.triton-trtllm-container.version;
 
 in
@@ -403,13 +419,13 @@ stdenv.mkDerivation {
   '';
 
   postFixup = ''
-    libPaths="$out/lib:$out/tensorrt_llm/lib:${runpath}"
+    # LD_LIBRARY_PATH set from wrapperLibPaths (glibc-free) — see binding above.
 
     for exe in $out/bin/*; do
       [ -f "$exe" ] && [ -x "$exe" ] || continue
       wrapProgram "$exe" \
         --set TRITON_SERVER_ROOT "$out" \
-        --prefix LD_LIBRARY_PATH : "$libPaths" \
+        --prefix LD_LIBRARY_PATH : "${wrapperLibPaths}" \
         --prefix PYTHONPATH : "$out/python"
     done
   '';
