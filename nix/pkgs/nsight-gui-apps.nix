@@ -31,7 +31,7 @@ let
 in
 stdenv.mkDerivation {
   pname = "nsight-gui-apps";
-  version = nvidia-sdk.version;
+  inherit (nvidia-sdk) version;
 
   dontUnpack = true;
   dontStrip = true;
@@ -166,6 +166,9 @@ stdenv.mkDerivation {
     description = "NVIDIA Nsight GUI profiling tools";
     homepage = "https://developer.nvidia.com/nsight-systems";
     license = lib.licenses.unfree;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
   };
 }

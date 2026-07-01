@@ -1,9 +1,21 @@
-{ writeShellApplication, curl, jq, nix, awscli2, versions }:
+{
+  writeShellApplication,
+  curl,
+  jq,
+  nix,
+  awscli2,
+  versions,
+}:
 
 writeShellApplication {
   name = "nvidia-redist-update";
 
-  runtimeInputs = [ curl jq nix awscli2 ];
+  runtimeInputs = [
+    curl
+    jq
+    nix
+    awscli2
+  ];
 
   text = ''
     set -euo pipefail

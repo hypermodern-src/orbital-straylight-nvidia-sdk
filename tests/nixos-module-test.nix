@@ -5,10 +5,10 @@
 # the nvidia-sdk module declares its options and wires config correctly,
 # WITHOUT requiring a full NixOS evaluation.
 
-{ pkgs ? import <nixpkgs> { }
-, lib ? pkgs.lib
+{
+  pkgs ? import <nixpkgs> { },
+  lib ? pkgs.lib,
 }:
-
 let
   # Minimal NixOS config evaluation
   eval = lib.evalModules {
@@ -23,38 +23,47 @@ let
             type = lib.types.attrs;
             default = pkgs.linuxPackages;
           };
+
           services.xserver.videoDrivers = lib.mkOption {
             type = lib.types.listOf lib.types.str;
             default = [ ];
           };
+
           environment.systemPackages = lib.mkOption {
             type = lib.types.listOf lib.types.package;
             default = [ ];
           };
+
           environment.variables = lib.mkOption {
             type = lib.types.attrsOf lib.types.str;
             default = { };
           };
+
           environment.etc = lib.mkOption {
             type = lib.types.attrsOf lib.types.anything;
             default = { };
           };
+
           hardware.nvidia = lib.mkOption {
             type = lib.types.attrsOf lib.types.anything;
             default = { };
           };
+
           hardware.graphics = lib.mkOption {
             type = lib.types.attrsOf lib.types.anything;
             default = { };
           };
+
           hardware.nvidia-container-toolkit = lib.mkOption {
             type = lib.types.attrsOf lib.types.anything;
             default = { };
           };
+
           virtualisation.docker.daemon.settings = lib.mkOption {
             type = lib.types.attrsOf lib.types.anything;
             default = { };
           };
+
           systemd.services = lib.mkOption {
             type = lib.types.attrsOf lib.types.anything;
             default = { };
@@ -64,10 +73,10 @@ let
         config = {
           # Mock nixpkgs with our overlay applied
           _module.args.pkgs = pkgs // {
-            nvidia-sdk = pkgs.hello;      # Mock SDK package
-            nvtop = pkgs.hello;           # Mock monitoring
+            nvidia-sdk = pkgs.hello; # Mock SDK package
+            nvtop = pkgs.hello; # Mock monitoring
             btop-nvml = pkgs.hello;
-            coreutils = pkgs.coreutils;
+            inherit (pkgs) coreutils;
           };
 
           # Enable our module
@@ -79,7 +88,7 @@ let
     ];
   };
 
-  config = eval.config;
+  inherit (eval) config;
 in
 {
   # Test that the module evaluates without errors

@@ -14,11 +14,21 @@ let
 
 in
 {
-  inherit mkNvidiaPackage schemas validators licenses;
+  inherit
+    mkNvidiaPackage
+    schemas
+    validators
+    licenses
+    ;
 
   # Convenience re-exports
   inherit (mkNvidiaPackage) mkNvidiaPackage;
   inherit (schemas) versionSchemas;
   inherit (validators) validateVersion assertCompatible;
-  inherit (licenses) nvidiaCuda nvidiaCudnn nvidiaTensorrt nvidiaCutensor;
+  inherit (licenses)
+    nvidiaCuda
+    nvidiaCudnn
+    nvidiaTensorrt
+    nvidiaCutensor
+    ;
 }

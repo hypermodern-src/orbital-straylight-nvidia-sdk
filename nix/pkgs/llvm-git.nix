@@ -10,7 +10,6 @@
   ncurses,
   libffi,
   llvm-project-src,
-  pkgsi686Linux,
 }:
 
 stdenv.mkDerivation {

@@ -2,15 +2,12 @@
 #
 # Validates the NVIDIA SDK flake on every push and PR.
 # All real checks are defined in flake.nix `checks.*` outputs.
-
 name: CI
-
 on:
   push:
-    branches: [ main, master, "b7r6/*" ]
+    branches: [main, master, "b7r6/*"]
   pull_request:
-    branches: [ main, master ]
-
+    branches: [main, master]
 jobs:
   # ── Flake evaluation ─────────────────────────────────────────────────────
   # Fast: verifies every package, check, devShell, and app evaluates
@@ -19,23 +16,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
         with:
           name: weyl-ai
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-
       - name: Evaluate flake (all systems)
         run: nix flake check --no-build --all-systems
-
   # ── Flake checks (build) ─────────────────────────────────────────────────
   # Builds and runs the `checks.*` derivations defined in flake.nix.
   # These verify SDK structure, version consistency, LLVM NVPTX target,
@@ -46,35 +39,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
         with:
           name: weyl-ai
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-
       - name: Run flake checks
         run: nix flake check
-
   # ── Lint ──────────────────────────────────────────────────────────────────
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
-
       - name: Check formatting
         run: |
           if nix run nixpkgs#nixfmt -- --check flake.nix nix/ 2>/dev/null; then
@@ -82,19 +69,16 @@ jobs:
           else
             echo "Note: nixfmt check skipped or found issues (non-blocking)"
           fi
-
       - name: Check for placeholder hashes
         run: |
           if grep -q 'sha256-AAAAAAA' nix/versions.nix; then
             echo "WARNING: placeholder hashes found in nix/versions.nix"
           fi
-
   # ── Docs ──────────────────────────────────────────────────────────────────
   docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Verify docs consistency
         run: |
           # Module file exists where tests/docs expect it
@@ -108,7 +92,6 @@ jobs:
             fi
           done
           echo "Docs consistency OK"
-
   # ── Summary ───────────────────────────────────────────────────────────────
   summary:
     needs: [eval, checks, lint, docs]

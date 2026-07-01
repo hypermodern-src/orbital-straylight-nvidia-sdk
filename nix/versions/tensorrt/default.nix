@@ -2,7 +2,7 @@
 #
 # NVIDIA TensorRT inference optimization library versions.
 
-{ lib }:
+_:
 
 {
   tensorrt = {

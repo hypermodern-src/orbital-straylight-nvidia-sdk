@@ -12,15 +12,16 @@
 #     ccLib = stdenv.cc.cc.lib;
 #     gcc15Pkg = pkgs.gcc15;
 #   };
-
-{ lib, stdenv, gcc15 }:
+{
+  lib,
+  stdenv,
+  gcc15,
+}:
 
 let
   isAarch64 = stdenv.hostPlatform.isAarch64;
 
-  targetTriple =
-    if isAarch64 then "aarch64-unknown-linux-gnu"
-    else "x86_64-unknown-linux-gnu";
+  targetTriple = if isAarch64 then "aarch64-unknown-linux-gnu" else "x86_64-unknown-linux-gnu";
 
   gccVersion = lib.versions.majorMinor gcc15.version + ".0";
 
@@ -37,14 +38,15 @@ let
   # Build the CUDA-aware clang stdenv.
   # Caller passes package-set-specific references.
   mkCudaStdenv =
-    { wrapCCWith
-    , stdenvAdapters
-    , glibc
-    , llvm-git
-    , cuda-merged
-    , gcc15Stdenv
-    , ccLib        # stdenv.cc.cc.lib
-    , gcc15Pkg     # pkgs.gcc15 (wrapper)
+    {
+      wrapCCWith,
+      stdenvAdapters,
+      glibc,
+      llvm-git,
+      cuda-merged,
+      gcc15Stdenv,
+      ccLib, # stdenv.cc.cc.lib
+      gcc15Pkg, # pkgs.gcc15 (wrapper)
     }:
     let
       clangGit = wrapCCWith {
@@ -52,6 +54,7 @@ let
         useCcForLibs = true;
         gccForLibs = gcc15.cc;
       };
+
       baseStdenv = stdenvAdapters.overrideCC gcc15Stdenv clangGit;
     in
     stdenvAdapters.addAttrsToDerivation {
@@ -85,8 +88,14 @@ let
 
       NIX_CXXSTDLIB_COMPILE = "-std=c++23";
     } baseStdenv;
-
 in
 {
-  inherit isAarch64 targetTriple gccVersion gccPaths cudaArch mkCudaStdenv;
+  inherit
+    isAarch64
+    targetTriple
+    gccVersion
+    gccPaths
+    cudaArch
+    mkCudaStdenv
+    ;
 }

@@ -1,4 +1,12 @@
-{ resholve, bash, coreutils, patchelf, file, findutils, gnugrep }:
+{
+  resholve,
+  bash,
+  coreutils,
+  patchelf,
+  file,
+  findutils,
+  gnugrep,
+}:
 resholve.mkDerivation {
   pname = "patch-nvidia-elfs";
   version = "1.0.0";
@@ -14,7 +22,13 @@ resholve.mkDerivation {
   solutions.default = {
     scripts = [ "bin/patch-nvidia-elfs" ];
     interpreter = "${bash}/bin/bash";
-    inputs = [ coreutils patchelf file findutils gnugrep ];
+    inputs = [
+      coreutils
+      patchelf
+      file
+      findutils
+      gnugrep
+    ];
     execer = [
       "cannot:${patchelf}/bin/patchelf"
       "cannot:${file}/bin/file"

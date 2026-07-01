@@ -1,6 +1,4 @@
 {
-  lib,
-  stdenv,
   writeShellScriptBin,
   cuda-samples,
   file,

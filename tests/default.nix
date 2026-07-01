@@ -3,7 +3,7 @@
 # Test entrypoint.  Only the unit suite exists today; build / integration /
 # module suites are listed as TODO stubs so the runner doesn't break.
 
-{ pkgs, nvidia-sdk ? null }:
+{ pkgs }:
 
 let
   # Import test suites that actually exist

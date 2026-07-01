@@ -7,11 +7,9 @@
   versions,
   cuda,
 }:
-
 let
   system = stdenv.hostPlatform.system;
   src-info = versions.cudnn.${system} or (throw "cudnn: unsupported system ${system}");
-
 in
 extract.extract {
   pname = "cudnn";
@@ -20,7 +18,7 @@ extract.extract {
   src = fetchurl {
     # Live NVIDIA upstream redistributable.
     url = src-info.urls.upstream;
-    hash = src-info.hash;
+    inherit (src-info) hash;
   };
 
   runtime-inputs = [

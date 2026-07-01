@@ -20,7 +20,7 @@ extract.extract {
   src = fetchurl {
     # Live NVIDIA upstream redistributable.
     url = src-info.urls.upstream;
-    hash = src-info.hash;
+    inherit (src-info) hash;
   };
 
   runtime-inputs = [
@@ -44,8 +44,6 @@ extract.extract {
     homepage = "https://developer.nvidia.com/tensorrt-rtx";
     license = lib.licenses.unfree;
 
-    platforms = [
-      "x86_64-linux"
-    ];
+    platforms = [ "x86_64-linux" ];
   };
 }

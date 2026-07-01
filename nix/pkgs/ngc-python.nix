@@ -5,75 +5,36 @@
 #
 # This avoids nixpkgs' torch/CUDA which would rebuild NCCL, magma, etc.
 
-{ lib
-, stdenv
-, python312
-, autoPatchelfHook
-, findutils
-, containerSrc
-, nvidia-sdk
-, makeWrapper
-, fetchPypi
-, # System libs needed by NGC wheels
-  zlib
-, openssl
-, libffi
-, ncurses
-, readline
-, bzip2
-, xz
-, libxml2
-, curl
-, numactl
-, rdma-core
-, ucx
-, zeromq
-,
+{
+  lib,
+  stdenv,
+  python312,
+  autoPatchelfHook,
+  findutils,
+  containerSrc,
+  nvidia-sdk,
+  makeWrapper,
+  fetchPypi,
+  # System libs needed by NGC wheels
+  zlib,
+  openssl,
+  libffi,
+  ncurses,
+  readline,
+  bzip2,
+  xz,
+  libxml2,
+  curl,
+  numactl,
+  rdma-core,
+  ucx,
+  zeromq,
 }:
 
 let
   python = python312;
 
   # PyCUDA - build from source since no wheels available
-  pycudaVersion = "2026.1";
-  pycuda = python.pkgs.buildPythonPackage {
-    pname = "pycuda";
-    version = pycudaVersion;
-    format = "setuptools";
-
-    src = fetchPypi {
-      pname = "pycuda";
-      version = pycudaVersion;
-      hash = "sha256-dZUWFgYougbzLOflY+P1uSFGkdyVKKA+qZ6hBz9OFLo=";
-    };
-
-    nativeBuildInputs = [
-      python.pkgs.setuptools
-      python.pkgs.wheel
-    ];
-
-    buildInputs = [
-      nvidia-sdk
-    ];
-
-    propagatedBuildInputs = [
-      python.pkgs.numpy
-      python.pkgs.pytools
-      python.pkgs.mako
-      python.pkgs.platformdirs
-    ];
-
-    preConfigure = ''
-      export CUDA_ROOT="${nvidia-sdk}"
-      export CUDA_INC_DIR="${nvidia-sdk}/include"
-      python configure.py --cuda-root="${nvidia-sdk}"
-    '';
-
-    # Skip tests - need GPU
-    doCheck = false;
-
-    pythonImportsCheck = [ "pycuda" ];
-  };
 
   # Extract all Python packages from NGC container
   ngcPythonPackages = stdenv.mkDerivation {
@@ -82,7 +43,10 @@ let
 
     src = containerSrc;
 
-    nativeBuildInputs = [ autoPatchelfHook findutils ];
+    nativeBuildInputs = [
+      autoPatchelfHook
+      findutils
+    ];
 
     buildInputs = [
       stdenv.cc.cc.lib
@@ -311,14 +275,17 @@ let
 
     meta = {
       description = "Python packages extracted from NGC container";
-      platforms = [ "x86_64-linux" "aarch64-linux" ];
+      platforms = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
     };
   };
 
 in
 stdenv.mkDerivation {
   pname = "python3-ngc";
-  version = python.version;
+  inherit (python) version;
 
   dontUnpack = true;
   dontConfigure = true;
@@ -383,7 +350,7 @@ stdenv.mkDerivation {
 
   passthru = {
     inherit python ngcPythonPackages;
-    pythonVersion = python.pythonVersion;
+    inherit (python) pythonVersion;
     sitePackages = "lib/python3.12/site-packages";
   };
 
@@ -392,7 +359,10 @@ stdenv.mkDerivation {
     homepage = "https://catalog.ngc.nvidia.com";
     # NGC container extraction includes proprietary components (TensorRT-LLM, cuDNN, etc.)
     license = lib.licenses.unfree;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
     mainProgram = "python3";
   };
 }

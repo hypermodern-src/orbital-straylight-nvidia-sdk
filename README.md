@@ -1,10 +1,12 @@
 # nvidia-sdk
 
-Production-grade NVIDIA CUDA SDK for NixOS with complete driver integration, container runtime support, and headless server capabilities.
+Production-grade NVIDIA CUDA SDK for NixOS with complete driver integration, container runtime
+support, and headless server capabilities.
 
 **📚 [Complete Documentation Index](DOCS.md)**
 
 **Key Features:**
+
 - ✅ Complete CUDA 13.1 SDK (toolkit, cuDNN, NCCL, TensorRT, etc.)
 - ✅ NixOS module with automatic driver management
 - ✅ Container runtime support (Docker/Podman GPU access via CDI)
@@ -56,15 +58,10 @@ Production-grade NVIDIA CUDA SDK for NixOS with complete driver integration, con
 
 ### CUDA SDK Components
 
-| Package | Version | Source |
-|---------|---------|--------|
-| **CUDA Toolkit** | 13.1 | NVIDIA installer |
-| **cuDNN** | 9.17.0.29 | NVIDIA redistrib |
-| **NCCL** | 2.28.9 | NGC container |
-| **TensorRT** | 10.15.1.29 | NVIDIA redistrib |
-| **cuTensor** | 2.4.1.4 | NVIDIA redistrib |
-| **CUTLASS** | 4.3.3 | GitHub |
-| **Triton Server** | 25.12 | NGC container |
+| Package | Version | Source | |---------|---------|--------| | **CUDA Toolkit** | 13.1 | NVIDIA
+installer | | **cuDNN** | 9.17.0.29 | NVIDIA redistrib | | **NCCL** | 2.28.9 | NGC container | |
+**TensorRT** | 10.15.1.29 | NVIDIA redistrib | | **cuTensor** | 2.4.1.4 | NVIDIA redistrib | |
+**CUTLASS** | 4.3.3 | GitHub | | **Triton Server** | 25.12 | NGC container |
 
 ### NixOS Module Features
 
@@ -82,6 +79,7 @@ hardware.nvidia-sdk = {
 ```
 
 **Driver Compatibility:**
+
 - Drivers are backward compatible
 - CUDA 13.1 requires driver ≥ 590.44.01
 - Works with: 590.44.01, any 590.x+
@@ -95,12 +93,14 @@ hardware.nvidia-sdk.persistenced = true;  # default
 ```
 
 **Why you need this:**
+
 - GPU stays initialized without X11/Wayland
 - Eliminates cold-start delays (crucial for containers)
 - Essential for production compute workloads
 - Prevents random failures in containerized applications
 
 **When to disable:**
+
 - Laptops where battery life matters
 - Desktop systems that power down GPU when idle
 
@@ -113,11 +113,13 @@ hardware.nvidia-sdk.container.enable = true;  # default
 ```
 
 **What it does:**
+
 - Installs nvidia-container-toolkit
 - Enables CDI (Container Device Interface) in Docker
 - Configures Podman if enabled
 
 **Usage:**
+
 ```bash
 # Docker
 docker run --device nvidia.com/gpu=all nvidia/cuda:13.0.2-base nvidia-smi
@@ -146,8 +148,8 @@ hardware.nvidia-sdk = {
 };
 ```
 
-When `systemPackages` is true, `CUDA_PATH` and `CUDA_HOME` environment
-variables are also set globally.
+When `systemPackages` is true, `CUDA_PATH` and `CUDA_HOME` environment variables are also set
+globally.
 
 ## Driver 590.x Series
 
@@ -155,11 +157,9 @@ variables are also set globally.
 
 CUDA 13.1 works with any driver ≥ 590.44.01:
 
-| Driver Version | Release Date | Status |
-|----------------|--------------|--------|
-| 590.44.01 | Jan 2026 | Minimum for CUDA 13.1 |
-| 590.54.01 | Feb 2026 | ✅ Recommended |
-| 590.65.01 | Mar 2026 | ✅ Latest stable |
+| Driver Version | Release Date | Status | |----------------|--------------|--------| | 590.44.01 |
+Jan 2026 | Minimum for CUDA 13.1 | | 590.54.01 | Feb 2026 | ✅ Recommended | | 590.65.01 | Mar 2026 |
+✅ Latest stable |
 
 ### Checking Your Driver
 
@@ -180,11 +180,13 @@ nvidia-smi | grep "Persistence-M"
 The 590.x series supports both:
 
 **Open Kernel Module** (Turing+ GPUs):
+
 ```nix
 hardware.nvidia-sdk.openKernelModule = true;
 ```
 
 **Proprietary Driver** (All GPUs):
+
 ```nix
 hardware.nvidia-sdk.openKernelModule = false;
 ```
@@ -262,27 +264,24 @@ hardware.nvidia-sdk = {
 
 ### Core Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `enable` | bool | false | Enable NVIDIA SDK |
-| `systemPackages` | bool | true | Add nvidia-sdk to environment.systemPackages |
-| `monitoring` | bool | true | Install nvtop + btop with NVML |
+| Option | Type | Default | Description | |--------|------|---------|-------------| | `enable` |
+bool | false | Enable NVIDIA SDK | | `systemPackages` | bool | true | Add nvidia-sdk to
+environment.systemPackages | | `monitoring` | bool | true | Install nvtop + btop with NVML |
 
 ### Driver Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `driver.package` | package | nvidiaPackages.latest | NVIDIA driver package |
-| `driver.open` | bool | true | Use open kernel module (Turing+) |
+| Option | Type | Default | Description | |--------|------|---------|-------------| |
+`driver.package` | package | nvidiaPackages.latest | NVIDIA driver package | | `driver.open` | bool
+| true | Use open kernel module (Turing+) |
 
 ### Server/Container Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `persistenced` | bool | **true** | Enable persistence daemon |
-| `container.enable` | bool | **true** | Enable container GPU access |
+| Option | Type | Default | Description | |--------|------|---------|-------------| | `persistenced`
+| bool | **true** | Enable persistence daemon | | `container.enable` | bool | **true** | Enable
+container GPU access |
 
-When `monitoring = true`, the module installs `nvtop` and `btop` (with NVML support). `nvidia-smi` is always available from the driver.
+When `monitoring = true`, the module installs `nvtop` and `btop` (with NVML support). `nvidia-smi`
+is always available from the driver.
 
 ## Architecture
 
@@ -326,6 +325,7 @@ examples/
 **Symptom:** `docker run --device nvidia.com/gpu=all` fails
 
 **Solution:**
+
 1. Check persistenced: `systemctl status nvidia-persistenced`
 2. Verify CDI: Check Docker has `features.cdi = true`
 3. Ensure driver loaded: `nvidia-smi`
@@ -337,6 +337,7 @@ examples/
 **Cause:** Kernel module and userspace libraries don't match
 
 **Solution:**
+
 ```bash
 # Check versions
 cat /proc/driver/nvidia/version  # Kernel module
@@ -351,6 +352,7 @@ sudo nixos-rebuild switch
 **Symptom:** Programs can't find CUDA
 
 **Solution:**
+
 - Ensure `systemPackages = true` (default) or add `pkgs.nvidia-sdk` to your user packages.
 - Check: `echo $CUDA_PATH`
 - Restart your shell after `nixos-rebuild switch`.
@@ -360,9 +362,11 @@ sudo nixos-rebuild switch
 **Symptom:** `Persistence-M` shows "Off" in nvidia-smi
 
 **Solution:**
+
 ```nix
 hardware.nvidia-sdk.persistenced = true;
 ```
+
 Then: `sudo nixos-rebuild switch`
 
 ## Documentation
@@ -375,26 +379,25 @@ Then: `sudo nixos-rebuild switch`
 
 ### Development Documentation
 
-- **[Blackwell Investigation](docs/archive/BLACKWELL-SM120-INVESTIGATION.md)** - SM120 CUTLASS bring-up journal
+- **[Blackwell Investigation](docs/archive/BLACKWELL-SM120-INVESTIGATION.md)** - SM120 CUTLASS
+  bring-up journal
 - **[CUDA stdenv Link Line](docs/archive/CUDA-STDENV-LINK-LINE.md)** - Manual compilation reference
 - **[stdenv Architecture](docs/archive/stdenvs.md)** - Custom stdenv design notes
 
 ## Trust & Reproducibility
 
-All binary artifacts are fetched with pinned SRI hashes in `nix/versions.nix`.
-The hash is the security boundary — regardless of where a file is downloaded
-from, a hash mismatch aborts the build.
+All binary artifacts are fetched with pinned SRI hashes in `nix/versions.nix`. The hash is the
+security boundary — regardless of where a file is downloaded from, a hash mismatch aborts the build.
 
 **What you're trusting:**
 
-| Component | Source | Trust boundary |
-|-----------|--------|---------------|
-| CUDA toolkit | `developer.download.nvidia.com` | SHA-256 hash in `versions.nix` |
-| cuDNN, TensorRT, cuTensor | mirror (`nvidia-redistributable.weyl.ai`) or upstream NVIDIA | SHA-256 hash in `versions.nix` |
-| NCCL | PyPI wheel or mirror | SHA-256 hash in `versions.nix` |
-| NGC container (Triton, Python) | `nvcr.io` via `crane export` | FOD hash in `versions.nix` |
-| CUTLASS | GitHub release tarball | SHA-256 hash in `versions.nix` |
-| Binary cache | `weyl-ai.cachix.org` | Cachix signing key in `flake.nix` |
+| Component | Source | Trust boundary | |-----------|--------|---------------| | CUDA toolkit |
+`developer.download.nvidia.com` | SHA-256 hash in `versions.nix` | | cuDNN, TensorRT, cuTensor |
+mirror (`nvidia-redistributable.weyl.ai`) or upstream NVIDIA | SHA-256 hash in `versions.nix` | |
+NCCL | PyPI wheel or mirror | SHA-256 hash in `versions.nix` | | NGC container (Triton, Python) |
+`nvcr.io` via `crane export` | FOD hash in `versions.nix` | | CUTLASS | GitHub release tarball |
+SHA-256 hash in `versions.nix` | | Binary cache | `weyl-ai.cachix.org` | Cachix signing key in
+`flake.nix` |
 
 **To disable the binary cache** (build everything from source):
 
@@ -402,9 +405,8 @@ from, a hash mismatch aborts the build.
 nix build .#nvidia-sdk --option substituters ""
 ```
 
-The mirror URLs (`nvidia-redistributable.weyl.ai`) are tried before upstream
-NVIDIA URLs.  If you prefer upstream-only fetches, swap the URL order in
-`nix/versions.nix` or remove the mirror entries.
+The mirror URLs (`nvidia-redistributable.weyl.ai`) are tried before upstream NVIDIA URLs. If you
+prefer upstream-only fetches, swap the URL order in `nix/versions.nix` or remove the mirror entries.
 
 ## Development
 
@@ -448,6 +450,7 @@ nix run .#update
 ## Contributing
 
 This is a production configuration used in production GPU clusters. Changes should:
+
 1. Maintain backward compatibility
 2. Be tested on real hardware
 3. Pass `nix flake check --no-build --all-systems`
@@ -456,12 +459,14 @@ This is a production configuration used in production GPU clusters. Changes shou
 ## License
 
 - **Nix expressions**: MIT License (see [LICENSE](LICENSE))
-- **NVIDIA binary components**: Subject to [NVIDIA's proprietary licenses](https://docs.nvidia.com/cuda/eula/)
+- **NVIDIA binary components**: Subject to
+  [NVIDIA's proprietary licenses](https://docs.nvidia.com/cuda/eula/)
 - **NCCL, CUTLASS**: BSD-3-Clause
 
 See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for full details.
 
-**Note:** By using this SDK, you agree to comply with the [NVIDIA End User License Agreement](https://www.nvidia.com/en-us/drivers/nvidia-license/).
+**Note:** By using this SDK, you agree to comply with the
+[NVIDIA End User License Agreement](https://www.nvidia.com/en-us/drivers/nvidia-license/).
 
 ## Support
 
@@ -469,9 +474,10 @@ See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for full details.
 - Docs: `docs/` directory
 - Examples: `examples/` directory
 
----
+______________________________________________________________________
 
 **Production-tested on:**
+
 - 4x NVIDIA RTX PRO 6000 (Ampere)
 - NVIDIA driver 590.44.01 (open kernel module)
 - CUDA 13.1

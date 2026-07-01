@@ -5,7 +5,12 @@
 # Usage:
 #   hardware.nvidia-sdk.enable = true;
 
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   cfg = config.hardware.nvidia-sdk;
@@ -109,7 +114,10 @@ in
 
     environment.systemPackages = lib.mkMerge [
       (lib.mkIf cfg.systemPackages [ pkgs.nvidia-sdk ])
-      (lib.mkIf cfg.monitoring [ pkgs.nvtop pkgs.btop-nvml ])
+      (lib.mkIf cfg.monitoring [
+        pkgs.nvtop
+        pkgs.btop-nvml
+      ])
     ];
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -127,9 +135,7 @@ in
 
     hardware.nvidia-container-toolkit.enable = cfg.container.enable;
 
-    virtualisation.docker.daemon.settings = lib.mkIf cfg.container.enable {
-      features.cdi = true;
-    };
+    virtualisation.docker.daemon.settings = lib.mkIf cfg.container.enable { features.cdi = true; };
 
     # ──────────────────────────────────────────────────────────────────────────
     # Persistence Daemon

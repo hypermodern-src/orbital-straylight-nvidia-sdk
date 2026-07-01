@@ -1,9 +1,4 @@
-{
-  lib,
-  stdenv,
-  writeShellScriptBin,
-  nvidia-sdk,
-}:
+{ writeShellScriptBin, nvidia-sdk }:
 
 writeShellScriptBin "validate-nvidia-sdk" ''
   set -e

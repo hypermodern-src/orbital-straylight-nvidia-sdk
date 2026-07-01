@@ -3,7 +3,7 @@
 # Defines license metadata for NVIDIA SDK components.
 # These are proprietary licenses but redistributable via official redist archives.
 
-{ lib }:
+_:
 
 {
   nvidiaCuda = {

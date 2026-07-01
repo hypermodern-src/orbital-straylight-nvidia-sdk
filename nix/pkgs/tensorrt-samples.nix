@@ -8,7 +8,6 @@
   tensorrt,
   nccl,
   python3,
-  versions,
 }:
 
 let
@@ -47,8 +46,17 @@ stdenv.mkDerivation {
     sed -i 's/set_target_properties.*DEBUG_POSTFIX.*/#&/' CMakeSamplesTemplate.txt
   '';
 
-  nativeBuildInputs = [ cmake python3 ];
-  buildInputs = [ cuda cudnn tensorrt nccl ];
+  nativeBuildInputs = [
+    cmake
+    python3
+  ];
+
+  buildInputs = [
+    cuda
+    cudnn
+    tensorrt
+    nccl
+  ];
 
   cmakeFlags = [
     "-DTRT_LIB_DIR=${tensorrt}/lib"
@@ -56,7 +64,7 @@ stdenv.mkDerivation {
     "-DONNX_INCLUDE_DIR=${tensorrt}/include"
     "-DCUDA_ROOT=${cuda}"
     "-DCMAKE_EXE_LINKER_FLAGS=-L${cuda}/lib"
-    "-DCMAKE_CUDA_ARCHITECTURES=120"  # Blackwell (sm_120)
+    "-DCMAKE_CUDA_ARCHITECTURES=120" # Blackwell (sm_120)
   ];
 
   NIX_LDFLAGS = "-L${tensorrt}/lib -lcudart -lnvinfer -lnvonnxparser -lnvinfer_plugin";
@@ -70,6 +78,9 @@ stdenv.mkDerivation {
     description = "NVIDIA TensorRT Samples ${version}";
     homepage = "https://github.com/NVIDIA/TensorRT";
     license = lib.licenses.asl20;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
   };
 }

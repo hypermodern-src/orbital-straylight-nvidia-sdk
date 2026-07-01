@@ -5,14 +5,14 @@
 {
   lib,
   devStdenv,
-  llvmPackages_git,  # LLVM HEAD with native SM120 support
+  llvmPackages_git, # LLVM HEAD with native SM120 support
   gcc15,
   glibc,
   cmake,
   ninja,
   python3,
   autoAddDriverRunpath,
-  cuda-merged,  # Symlink-joined CUDA for C++20/23 support
+  cuda-merged, # Symlink-joined CUDA for C++20/23 support
   cutlass,
   versions,
 }:
@@ -22,14 +22,18 @@
   # If null or empty, builds all examples
   exampleTargets ? null,
   # Optional: custom name for the package
-  pname ? if exampleTargets != null then "cutlass-examples-${lib.concatStringsSep "-" exampleTargets}" else "cutlass-examples",
+  pname ?
+    if exampleTargets != null then
+      "cutlass-examples-${lib.concatStringsSep "-" exampleTargets}"
+    else
+      "cutlass-examples",
 }:
 
 devStdenv.mkDerivation {
   inherit pname;
   version = versions.cutlass.version;
 
-  src = cutlass.src;
+  inherit (cutlass) src;
 
   nativeBuildInputs = [
     cmake
@@ -42,7 +46,7 @@ devStdenv.mkDerivation {
     cuda-merged
     cutlass
     gcc15
-    glibc.dev  # Required for system headers (features.h, etc.)
+    glibc.dev # Required for system headers (features.h, etc.)
   ];
 
   # Use gcc15's libstdc++
@@ -58,15 +62,15 @@ devStdenv.mkDerivation {
   '';
 
   cmakeFlags = [
-    "-DCUTLASS_NVCC_ARCHS=120"  # Blackwell (sm_120)
+    "-DCUTLASS_NVCC_ARCHS=120" # Blackwell (sm_120)
     "-DCUTLASS_ENABLE_EXAMPLES=ON"
     "-DCUTLASS_ENABLE_TESTS=OFF"
     "-DCUTLASS_ENABLE_PROFILER=OFF"
     "-DCUDA_TOOLKIT_ROOT_DIR=${cuda-merged}"
-    "-DCMAKE_CUDA_COMPILER=${llvmPackages_git.clang}/bin/clang++"  # Clang from git HEAD as CUDA compiler
+    "-DCMAKE_CUDA_COMPILER=${llvmPackages_git.clang}/bin/clang++" # Clang from git HEAD as CUDA compiler
     "-DCMAKE_CUDA_COMPILER_ID=Clang"
     "-DCMAKE_CUDA_ARCHITECTURES=120"
-    "-DCMAKE_CXX_STANDARD=23"  # C++23 support confirmed working with LLVM HEAD
+    "-DCMAKE_CXX_STANDARD=23" # C++23 support confirmed working with LLVM HEAD
     "-DCMAKE_CUDA_STANDARD=23"
     "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
     "-DCMAKE_CXX_FLAGS=-I${cutlass}/include -D__CUDACC_VER_MAJOR__=13 -D__CUDACC_VER_MINOR__=8 -DCUDART_VERSION=13000"
@@ -91,15 +95,20 @@ devStdenv.mkDerivation {
     runHook preInstall
     mkdir -p $out/bin
 
-    ${if exampleTargets != null then ''
-      # Copy specific example binaries from where ninja puts them
-      for target in ${lib.concatStringsSep " " exampleTargets}; do
-        find . -type f -executable -name "$target" -exec cp {} $out/bin/ \;
-      done
-    '' else ''
-      # Find and copy all example binaries
-      find . -type f -executable \( -name "*blackwell*" -o -name "*fp4*" \) -exec cp {} $out/bin/ \;
-    ''}
+    ${
+      if exampleTargets != null then
+        ''
+          # Copy specific example binaries from where ninja puts them
+          for target in ${lib.concatStringsSep " " exampleTargets}; do
+            find . -type f -executable -name "$target" -exec cp {} $out/bin/ \;
+          done
+        ''
+      else
+        ''
+          # Find and copy all example binaries
+          find . -type f -executable \( -name "*blackwell*" -o -name "*fp4*" \) -exec cp {} $out/bin/ \;
+        ''
+    }
 
     # Verify we got binaries
     if [ ! -z "$(ls -A $out/bin 2>/dev/null)" ]; then
@@ -111,9 +120,16 @@ devStdenv.mkDerivation {
   '';
 
   meta = {
-    description = "CUTLASS ${versions.cutlass.version} examples${if exampleTargets != null then " (${lib.concatStringsSep ", " exampleTargets})" else ""}";
+    description = "CUTLASS ${versions.cutlass.version} examples${
+      if exampleTargets != null then " (${lib.concatStringsSep ", " exampleTargets})" else ""
+    }";
+
     homepage = "https://github.com/NVIDIA/cutlass";
     license = lib.licenses.bsd3;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
   };
 }

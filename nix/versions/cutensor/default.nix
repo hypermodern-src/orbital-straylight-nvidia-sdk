@@ -2,7 +2,7 @@
 #
 # NVIDIA cuTENSOR high-performance tensor library versions.
 
-{ lib }:
+_:
 
 {
   cutensor = {

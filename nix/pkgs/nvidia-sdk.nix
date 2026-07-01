@@ -50,7 +50,13 @@ let
       scripts = [ "bin/patch-nvidia-elfs" ];
       interpreter = "${bash}/bin/bash";
 
-      inputs = [ coreutils patchelf file findutils gnugrep ];
+      inputs = [
+        coreutils
+        patchelf
+        file
+        findutils
+        gnugrep
+      ];
 
       execer = [
         "cannot:${patchelf}/bin/patchelf"
@@ -89,7 +95,11 @@ stdenv.mkDerivation {
   version = versions.cuda.version;
 
   dontUnpack = true;
-  nativeBuildInputs = [ makeWrapper patchelf file ];
+  nativeBuildInputs = [
+    makeWrapper
+    patchelf
+    file
+  ];
   buildInputs = [
     merged
     qt6.qtbase
@@ -276,7 +286,9 @@ stdenv.mkDerivation {
       mesaLibs = "${mesa}/lib:${libglvnd}/lib";
       x11Libs = "${xorg.libX11}/lib:${xorg.libXext}/lib:${xorg.libXrender}/lib:${xorg.libxcb}/lib";
       sysLibs = "${stdenv.cc.cc.lib}/lib:${dbus}/lib";
-      nsightLibs = "$out/${ncuDir}/${ncuHostPath}:$out/${nsysDir}/${nsysHostPath}:$out/${nsysDir}/target-linux-${if stdenv.hostPlatform.isAarch64 then "sbsa" else "x64"}";
+      nsightLibs = "$out/${ncuDir}/${ncuHostPath}:$out/${nsysDir}/${nsysHostPath}:$out/${nsysDir}/target-linux-${
+        if stdenv.hostPlatform.isAarch64 then "sbsa" else "x64"
+      }";
       dynamicLinker = "$(cat ${stdenv.cc}/nix-support/dynamic-linker)";
     in
     ''

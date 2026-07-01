@@ -6,7 +6,6 @@
   versions,
   cuda,
 }:
-
 stdenv.mkDerivation {
   pname = "nccl";
   version = versions.nccl.version;
@@ -18,6 +17,7 @@ stdenv.mkDerivation {
   };
 
   nativeBuildInputs = [ autoPatchelfHook ];
+
   buildInputs = [
     stdenv.cc.cc.lib
     cuda

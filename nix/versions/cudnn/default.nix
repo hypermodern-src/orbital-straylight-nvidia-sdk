@@ -2,7 +2,7 @@
 #
 # NVIDIA Deep Neural Network library versions.
 
-{ lib }:
+_:
 
 {
   cudnn = {

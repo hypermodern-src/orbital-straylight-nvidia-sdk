@@ -21,17 +21,17 @@
 
 let
   # Architecture-specific subdirectory
-  archDir = if stdenv.hostPlatform.system == "x86_64-linux"
-    then "linux-desktop-dl-x64"
-    else "linux-desktop-dl-sbsa";
+  archDir =
+    if stdenv.hostPlatform.system == "x86_64-linux" then
+      "linux-desktop-dl-x64"
+    else
+      "linux-desktop-dl-sbsa";
 in
 stdenv.mkDerivation {
   pname = "nsight-dl-designer";
   version = versions.nsight-dl-designer.version;
 
-  src = fetchurl {
-    inherit (versions.nsight-dl-designer.${stdenv.hostPlatform.system}) url hash;
-  };
+  src = fetchurl { inherit (versions.nsight-dl-designer.${stdenv.hostPlatform.system}) url hash; };
 
   nativeBuildInputs = [
     makeWrapper
@@ -98,6 +98,9 @@ stdenv.mkDerivation {
     description = "NVIDIA Nsight Deep Learning Designer";
     homepage = "https://developer.nvidia.com/nsight-dl-designer";
     license = lib.licenses.unfree;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
   };
 }

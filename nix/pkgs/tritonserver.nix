@@ -3,80 +3,80 @@
 # Extracted from the canonical NGC container.
 # Includes all backends: TensorRT, TensorRT-LLM, Python, ONNX, etc.
 
-{ lib
-, stdenv
-, fetchurl
-, autoPatchelfHook
-, modern
-, file
-, findutils
-, gnugrep
-, patchelf
-, makeWrapper
-, python312
-, abseil-cpp
-, acl
-, audit
-, boost
-, bzip2
-, curl
-, cyrus_sasl
-, db
-, dbus
-, e2fsprogs
-, expat
-, gdbm
-, glib
-, gnutls
-, gperftools
-, grpc
-, icu
-, keyutils
-, libarchive
-, libbsd
-, libcap
-, libcap_ng
-, libevent
-, libffi
-, libgcrypt
-, libgpg-error
-, libkrb5
-, libmd
-, libselinux
-, libsemanage
-, libsepol
-, libssh
-, libuuid
-, libxcrypt
-, libxml2
-, lz4
-, ncurses
-, nettle
-, numactl
-, rdma-core # libibverbs/libmlx5/librdmacm — RDMA over the ConnectX/QSFP fabric
-, ucx # libuct/libucp/libucs — UCX transports used by NCCL/TRT-LLM multi-node
-, zeromq # libzmq — used by the TRT-LLM UCX wrapper
-, openldap
-, # openmpi - use container's MPI to avoid nixpkgs CUDA dep chain
-  openssl
-, pam
-, pcre
-, pcre2
-, protobuf
-, rapidjson
-, re2
-, readline
-, rtmpdump
-, systemd
-, containerSrc
-, tzdata
-, util-linux
-, versions
-, xz
-, zlib
-, nvidia-sdk
-, backend ? "trtllm"
-, # Default to TRT-LLM (the full package)
+{
+  lib,
+  stdenv,
+  fetchurl,
+  autoPatchelfHook,
+  modern,
+  file,
+  findutils,
+  gnugrep,
+  patchelf,
+  makeWrapper,
+  python312,
+  abseil-cpp,
+  acl,
+  audit,
+  boost,
+  bzip2,
+  curl,
+  cyrus_sasl,
+  db,
+  dbus,
+  e2fsprogs,
+  expat,
+  gdbm,
+  glib,
+  gnutls,
+  gperftools,
+  grpc,
+  icu,
+  keyutils,
+  libarchive,
+  libbsd,
+  libcap,
+  libcap_ng,
+  libevent,
+  libffi,
+  libgcrypt,
+  libgpg-error,
+  libkrb5,
+  libmd,
+  libselinux,
+  libsemanage,
+  libsepol,
+  libssh,
+  libuuid,
+  libxcrypt,
+  libxml2,
+  lz4,
+  ncurses,
+  nettle,
+  numactl,
+  rdma-core, # libibverbs/libmlx5/librdmacm — RDMA over the ConnectX/QSFP fabric
+  ucx, # libuct/libucp/libucs — UCX transports used by NCCL/TRT-LLM multi-node
+  zeromq, # libzmq — used by the TRT-LLM UCX wrapper
+  openldap,
+  # openmpi - use container's MPI to avoid nixpkgs CUDA dep chain
+  openssl,
+  pam,
+  pcre,
+  pcre2,
+  protobuf,
+  rapidjson,
+  re2,
+  readline,
+  rtmpdump,
+  systemd,
+  containerSrc,
+  tzdata,
+  util-linux,
+  versions,
+  xz,
+  zlib,
+  nvidia-sdk,
+  # Default to TRT-LLM (the full package)
   ...
 }:
 
@@ -480,7 +480,10 @@ stdenv.mkDerivation {
     homepage = "https://developer.nvidia.com/nvidia-triton-inference-server";
     # NGC container extraction includes proprietary components (TensorRT-LLM, cuDNN, etc.)
     license = lib.licenses.unfree;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
     mainProgram = "tritonserver";
   };
 }

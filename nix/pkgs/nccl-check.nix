@@ -1,13 +1,16 @@
-{ lib
-, writeShellApplication
-, nccl-tests
-, openmpi
+{
+  writeShellApplication,
+  nccl-tests,
+  openmpi,
 }:
 
 writeShellApplication {
   name = "nccl-check";
 
-  runtimeInputs = [ nccl-tests openmpi ];
+  runtimeInputs = [
+    nccl-tests
+    openmpi
+  ];
 
   text = ''
     set -e

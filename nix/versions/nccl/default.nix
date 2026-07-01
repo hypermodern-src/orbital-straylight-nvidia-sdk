@@ -2,7 +2,7 @@
 #
 # NVIDIA Collective Communications Library versions.
 
-{ lib }:
+_:
 
 {
   nccl = {

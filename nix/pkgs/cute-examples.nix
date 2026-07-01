@@ -15,7 +15,7 @@ devStdenv.mkDerivation {
   pname = "cute-examples";
   version = versions.cutlass.version;
 
-  src = cutlass.src;
+  inherit (cutlass) src;
 
   nativeBuildInputs = [
     cmake
@@ -32,11 +32,11 @@ devStdenv.mkDerivation {
   CMAKE_CUDA_FLAGS = "--cuda-path=${cuda} -I${cuda}/include -I${cuda}/targets/x86_64-linux/include";
 
   cmakeFlags = [
-    "-DCUTLASS_NVCC_ARCHS=120"  # Blackwell (sm_120)
+    "-DCUTLASS_NVCC_ARCHS=120" # Blackwell (sm_120)
     "-DCUTLASS_ENABLE_EXAMPLES=ON"
     "-DCUTLASS_ENABLE_TESTS=OFF"
     "-DCUDA_TOOLKIT_ROOT_DIR=${cuda}"
-    "-DCMAKE_CUDA_COMPILER=${llvmPackages_21.clang}/bin/clang++"  # Clang as CUDA compiler (bypasses cudafe++)
+    "-DCMAKE_CUDA_COMPILER=${llvmPackages_21.clang}/bin/clang++" # Clang as CUDA compiler (bypasses cudafe++)
     "-DCMAKE_CUDA_COMPILER_ID=Clang"
     "-DCMAKE_CUDA_ARCHITECTURES=120"
     "-DCMAKE_CXX_STANDARD=23"
@@ -72,6 +72,9 @@ devStdenv.mkDerivation {
     description = "CuTe (CUTLASS 3.x) examples for Hopper/Blackwell";
     homepage = "https://github.com/NVIDIA/cutlass";
     license = lib.licenses.bsd3;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
   };
 }

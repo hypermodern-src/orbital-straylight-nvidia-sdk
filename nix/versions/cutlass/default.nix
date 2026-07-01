@@ -2,7 +2,7 @@
 #
 # NVIDIA CUTLASS CUDA Templates for Linear Algebra Subroutines and Solvers.
 
-{ lib }:
+_:
 
 {
   cutlass = {

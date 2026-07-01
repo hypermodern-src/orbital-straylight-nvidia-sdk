@@ -41,28 +41,52 @@ let
 
   # CUDA-Driver compatibility matrix
   compatibilityMatrix = {
-    "13.0.0" = { minDriver = "580.65.06"; maxDriver = null; status = "legacy"; };
-    "13.0.1" = { minDriver = "580.82.07"; maxDriver = null; status = "legacy"; };
-    "13.0.2" = { minDriver = "580.95.05"; maxDriver = null; status = "stable"; };
-    "13.1" = { minDriver = "590.44.01"; maxDriver = null; status = "current"; };
+    "13.0.0" = {
+      minDriver = "580.65.06";
+      maxDriver = null;
+      status = "legacy";
+    };
+    "13.0.1" = {
+      minDriver = "580.82.07";
+      maxDriver = null;
+      status = "legacy";
+    };
+    "13.0.2" = {
+      minDriver = "580.95.05";
+      maxDriver = null;
+      status = "stable";
+    };
+    "13.1" = {
+      minDriver = "590.44.01";
+      maxDriver = null;
+      status = "current";
+    };
   };
 
   # Helper functions
   helpers = {
     # Check if a CUDA version is compatible with a driver version
-    checkCompatibility = cudaVersion: driverVersion:
+    checkCompatibility =
+      cudaVersion: driverVersion:
       let
         req = compatibilityMatrix.${cudaVersion} or null;
       in
-        if req == null then
-          { compatible = false; reason = "Unknown CUDA version: ${cudaVersion}"; }
-        else if lib.strings.versionOlder driverVersion req.minDriver then
-          { 
-            compatible = false; 
-            reason = "Driver ${driverVersion} < minimum required ${req.minDriver} for CUDA ${cudaVersion}"; 
-          }
-        else
-          { compatible = true; reason = "OK"; status = req.status; };
+      if req == null then
+        {
+          compatible = false;
+          reason = "Unknown CUDA version: ${cudaVersion}";
+        }
+      else if lib.strings.versionOlder driverVersion req.minDriver then
+        {
+          compatible = false;
+          reason = "Driver ${driverVersion} < minimum required ${req.minDriver} for CUDA ${cudaVersion}";
+        }
+      else
+        {
+          compatible = true;
+          reason = "OK";
+          inherit (req) status;
+        };
 
     # Get the default CUDA version
     defaultCudaVersion = "13.1";
@@ -71,22 +95,24 @@ let
     defaultDriverVersion = "590.44.01";
 
     # Assert compatibility at evaluation time
-    assertCompatible = cudaVersion: driverVersion:
+    assertCompatible =
+      cudaVersion: driverVersion:
       let
         result = helpers.checkCompatibility cudaVersion driverVersion;
       in
-        assert lib.assertMsg result.compatible result.reason;
-        true;
+      assert lib.assertMsg result.compatible result.reason;
+      true;
   };
 
 in
 
 # Assert validation passed
-assert lib.assertMsg validation.valid 
+assert lib.assertMsg validation.valid
   "Version validation failed: ${lib.concatStringsSep "; " validation.errors}";
 
 # Return all versions with helpers
-allVersions // {
+allVersions
+// {
   inherit validation compatibilityMatrix;
   lib = helpers;
 }

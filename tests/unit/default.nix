@@ -9,7 +9,7 @@
 { pkgs }:
 
 let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   # Import the canonical versions file (flat attrset, no args)
   versions = import ../../nix/versions.nix;
@@ -19,8 +19,9 @@ let
   validators = import ../../nix/lib/validators.nix { inherit lib schemas; };
 
   # Test runner — each test is an assertion in Nix; if it evaluates, it passes.
-  runTest = name: expr:
-    pkgs.runCommand "test-${name}" {} ''
+  runTest =
+    name: expr:
+    pkgs.runCommand "test-${name}" { } ''
       echo "Running test: ${name}"
       ${expr}
       echo "PASS" > $out
@@ -72,51 +73,75 @@ let
 
     # Test compatibility checker from validators.nix
     compatibility-compatible = ''
-      ${let result = validators.checkCompatibility "13.1" "590.44.01";
+      ${
+        let
+          result = validators.checkCompatibility "13.1" "590.44.01";
         in
-          if result.compatible then ''
+        if result.compatible then
+          ''
             echo "13.1 + 590.44.01: compatible=true (OK)"
-          '' else ''
+          ''
+        else
+          ''
             echo "FAIL: 13.1 + 590.44.01 should be compatible but got: ${result.reason}" && exit 1
-          ''}
+          ''
+      }
     '';
 
     compatibility-incompatible = ''
-      ${let result = validators.checkCompatibility "13.1" "580.00.00";
+      ${
+        let
+          result = validators.checkCompatibility "13.1" "580.00.00";
         in
-          if !result.compatible then ''
+        if !result.compatible then
+          ''
             echo "13.1 + 580.00.00: compatible=false (OK, expected)"
-          '' else ''
+          ''
+        else
+          ''
             echo "FAIL: 13.1 + 580.00.00 should be incompatible" && exit 1
-          ''}
+          ''
+      }
     '';
 
     # Test schema validation
     schema-validation = ''
-      ${let result = schemas.validateVersion "cuda" {
+      ${
+        let
+          result = schemas.validateVersion "cuda" {
             version = "13.1";
             driver = "590.44.01";
             url = "https://example.com";
             hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
           };
         in
-          if result.valid then ''
+        if result.valid then
+          ''
             echo "Schema validation: valid (OK)"
-          '' else ''
+          ''
+        else
+          ''
             echo "FAIL: schema validation should pass but got errors: ${lib.concatStringsSep ", " result.errors}" && exit 1
-          ''}
+          ''
+      }
     '';
 
     # Test that driver hashes are still placeholders (reminder to fix)
     driver-hash-placeholder = ''
       echo "Checking driver hash placeholder status..."
-      ${let hash = versions.driver.x86_64-linux.hash;
+      ${
+        let
+          hash = versions.driver.x86_64-linux.hash;
         in
-          if lib.hasPrefix "sha256-AAAAAAA" hash then ''
+        if lib.hasPrefix "sha256-AAAAAAA" hash then
+          ''
             echo "WARNING: driver hash is still a placeholder (expected during development)"
-          '' else ''
+          ''
+        else
+          ''
             echo "Driver hash looks real: ${hash}"
-          ''}
+          ''
+      }
     '';
   };
 

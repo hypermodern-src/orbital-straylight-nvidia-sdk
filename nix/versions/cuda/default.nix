@@ -3,7 +3,7 @@
 # Defines all supported CUDA toolkit versions with their
 # download URLs, hashes, and driver requirements.
 
-{ lib }:
+_:
 
 {
   cuda = {

@@ -19,7 +19,10 @@ stdenv.mkDerivation {
     hash = versions.cutlass.hash;
   };
 
-  nativeBuildInputs = [ cmake pkgs.python3 ];
+  nativeBuildInputs = [
+    cmake
+    pkgs.python3
+  ];
   buildInputs = [ cuda ];
 
   cmakeFlags = [

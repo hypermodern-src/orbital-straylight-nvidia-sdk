@@ -3,7 +3,7 @@
 # This example shows how to declaratively configure NVIDIA CUDA on NixOS
 # using the nvidia-sdk flake.
 
-{ config, pkgs, inputs, ... }:
+{ pkgs, inputs, ... }:
 
 {
   imports = [
@@ -12,9 +12,7 @@
   ];
 
   # Apply the overlay to get CUDA packages
-  nixpkgs.overlays = [
-    inputs.nvidia-sdk.overlays.default
-  ];
+  nixpkgs.overlays = [ inputs.nvidia-sdk.overlays.default ];
 
   # ════════════════════════════════════════════════════════════════════════════
   # NVIDIA SDK Configuration
@@ -38,20 +36,20 @@
     # ──────────────────────────────────────────────────────────────────────────
 
     # Add nvidia-sdk to PATH (nvcc, cuda-gdb, etc.) and set CUDA_PATH/CUDA_HOME
-    systemPackages = true;  # default
+    systemPackages = true; # default
 
     # GPU monitoring tools (nvtop + btop with NVML)
-    monitoring = true;  # default
+    monitoring = true; # default
 
     # ──────────────────────────────────────────────────────────────────────────
     # Services
     # ──────────────────────────────────────────────────────────────────────────
 
     # nvidia-persistenced for headless/server use
-    persistenced = true;  # default
+    persistenced = true; # default
 
     # Container GPU passthrough (Docker/Podman with CDI)
-    container.enable = true;  # default
+    container.enable = true; # default
   };
 
   # ════════════════════════════════════════════════════════════════════════════

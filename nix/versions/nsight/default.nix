@@ -2,7 +2,7 @@
 #
 # NVIDIA Nsight Compute and Systems profiling tool versions.
 
-{ lib }:
+_:
 
 {
   nsight = {

@@ -3,16 +3,12 @@
 #
 # Usage: Import this in your NixOS configuration
 
-{ config, pkgs, inputs, ... }:
+{ inputs, ... }:
 
 {
-  imports = [
-    inputs.nvidia-sdk.nixosModules.default
-  ];
+  imports = [ inputs.nvidia-sdk.nixosModules.default ];
 
-  nixpkgs.overlays = [
-    inputs.nvidia-sdk.overlays.default
-  ];
+  nixpkgs.overlays = [ inputs.nvidia-sdk.overlays.default ];
 
   nixpkgs.config.allowUnfree = true;
 
@@ -26,12 +22,12 @@
     # driver.package = config.boot.kernelPackages.nvidiaPackages.stable;
 
     # Server features (all true by default)
-    persistenced = true;       # Keep GPU initialized for headless/server
-    container.enable = true;   # Docker/Podman GPU via CDI
+    persistenced = true; # Keep GPU initialized for headless/server
+    container.enable = true; # Docker/Podman GPU via CDI
 
     # System integration
-    systemPackages = true;     # nvidia-sdk in PATH
-    monitoring = true;         # nvtop + btop with NVML
+    systemPackages = true; # nvidia-sdk in PATH
+    monitoring = true; # nvtop + btop with NVML
   };
 
   # Verify your driver version matches:

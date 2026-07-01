@@ -2,7 +2,7 @@
 #
 # NVIDIA GPU Cloud (NGC) container versions for Triton + TensorRT-LLM.
 
-{ lib }:
+_:
 
 {
   ngc = {

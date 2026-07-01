@@ -2,7 +2,6 @@
 #
 # Automated checks run before each commit to ensure code quality.
 # Install with: pre-commit install
-
 repos:
   # Nix formatting and linting
   - repo: https://github.com/nix-community/nixpkgs-fmt
@@ -11,39 +10,31 @@ repos:
       - id: nixpkgs-fmt
         name: Format Nix files
         files: \.nix$
-        exclude: ^nix/versions/.*\.nix$  # Exclude generated version files
-
+        exclude: ^nix/versions/.*\.nix$ # Exclude generated version files
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
       - id: trailing-whitespace
         name: Remove trailing whitespace
-        exclude: \.nix$  # nixpkgs-fmt handles this
-
+        exclude: \.nix$ # nixpkgs-fmt handles this
       - id: end-of-file-fixer
         name: Ensure files end with newline
-        exclude: \.nix$  # nixpkgs-fmt handles this
-
+        exclude: \.nix$ # nixpkgs-fmt handles this
       - id: check-yaml
         name: Validate YAML files
         files: \.(yaml|yml)$
-
       - id: check-json
         name: Validate JSON files
         files: \.json$
-
       - id: check-added-large-files
         name: Check for large files
         args: ['--maxkb=1000']
-        exclude: \.(run|tar\.gz|tar\.xz|zip)$  # Allow large archives
-
+        exclude: \.(run|tar\.gz|tar\.xz|zip)$ # Allow large archives
       - id: check-merge-conflict
         name: Check for merge conflicts
-
       - id: detect-private-key
         name: Detect private keys
-
   # Custom hooks for NVIDIA SDK
   - repo: local
     hooks:
@@ -55,7 +46,6 @@ repos:
         args:
           - -c
           - 'for f in "$@"; do nix-instantiate --parse "$f" > /dev/null || exit 1; done'
-
       - id: check-version-validation
         name: Check version validation passes
         entry: bash
@@ -65,7 +55,6 @@ repos:
         args:
           - -c
           - 'nix-instantiate --eval --expr "let versions = import ./nix/versions { lib = import <nixpkgs/lib>; }; in versions.cuda.version" > /dev/null'
-
       - id: check-todo-markers
         name: Check for TODO/FIXME markers
         entry: bash
@@ -75,7 +64,6 @@ repos:
         args:
           - -c
           - 'if grep -r "TODO\|FIXME\|XXX" --include="*.nix" nix/versions/ 2>/dev/null; then echo "Warning: Found TODO/FIXME markers"; fi; true'
-
       - id: check-flake-lock
         name: Check flake.lock is up to date
         entry: bash
@@ -85,7 +73,6 @@ repos:
         args:
           - -c
           - 'if [ -f flake.lock ]; then nix flake check --no-build 2>&1 | head -20; fi; true'
-
 # Configuration for pre-commit.ci (if using)
 ci:
   autofix_commit_msg: |
@@ -96,5 +83,5 @@ ci:
   autoupdate_branch: ''
   autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
   autoupdate_schedule: weekly
-  skip: [check-flake-lock]  # Skip slow checks in CI
+  skip: [check-flake-lock] # Skip slow checks in CI
   submodules: false

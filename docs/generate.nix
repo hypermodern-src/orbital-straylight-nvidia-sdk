@@ -3,20 +3,32 @@
 # Auto-generates documentation from code to ensure consistency.
 # Generates compatibility matrices, package inventories, and option references.
 
-{ pkgs, nvidia-sdk }:
+{ pkgs }:
 
 let
-  lib = pkgs.lib;
-  
+  inherit (pkgs) lib;
+
   # Import the canonical flat versions file (no args needed)
   versions = import ../nix/versions.nix;
 
   # CUDA-Driver compatibility (mirrors nix/lib/validators.nix)
   compatMatrix = {
-    "13.0.0" = { minDriver = "580.65.06"; status = "legacy"; };
-    "13.0.1" = { minDriver = "580.82.07"; status = "legacy"; };
-    "13.0.2" = { minDriver = "580.95.05"; status = "stable"; };
-    "13.1"   = { minDriver = "590.44.01"; status = "current"; };
+    "13.0.0" = {
+      minDriver = "580.65.06";
+      status = "legacy";
+    };
+    "13.0.1" = {
+      minDriver = "580.82.07";
+      status = "legacy";
+    };
+    "13.0.2" = {
+      minDriver = "580.95.05";
+      status = "stable";
+    };
+    "13.1" = {
+      minDriver = "590.44.01";
+      status = "current";
+    };
   };
 
   # Generate compatibility matrix
@@ -27,9 +39,20 @@ let
 
     | CUDA Version | Minimum Driver | Status | Notes |
     |--------------|----------------|--------|-------|
-    ${lib.concatMapStrings (ver: let
-      info = compatMatrix.${ver};
-    in "| ${ver} | ${info.minDriver} | ${info.status} | ${if info.status == "current" then "✅ Default" else if info.status == "stable" then "✓ Supported" else "⚠ Legacy"} |\n") (lib.attrNames compatMatrix)}
+    ${lib.concatMapStrings (
+      ver:
+      let
+        info = compatMatrix.${ver};
+      in
+      "| ${ver} | ${info.minDriver} | ${info.status} | ${
+        if info.status == "current" then
+          "✅ Default"
+        else if info.status == "stable" then
+          "✓ Supported"
+        else
+          "⚠ Legacy"
+      } |\n"
+    ) (lib.attrNames compatMatrix)}
 
     ## Driver Compatibility Notes
 
@@ -90,9 +113,9 @@ let
   # Generate module options reference
   generateModuleOptions = pkgs.writeShellScriptBin "generate-module-options" ''
     set -e
-    
+
     OUT_FILE=''${1:-module-options.md}
-    
+
     cat > $OUT_FILE << 'HEADER'
     # NixOS Module Options Reference
 
@@ -103,41 +126,41 @@ let
     | Option | Type | Default | Description |
     |--------|------|---------|-------------|
     HEADER
-    
+
     # Extract options from the module file
     grep -E "^\s*(enable|cudaVersion|driver|openKernelModule|nvidiaPersistenced|container|monitoring|opengl|powerManagement|systemPackages|wrapPrograms|expose) =" nix/modules/nvidia-sdk.nix | \
     while read line; do
       option=$(echo "$line" | sed 's/=.*$//' | xargs)
       echo "| hardware.nvidia-sdk.$option | ... | ... | ... |" >> $OUT_FILE
     done
-    
+
     echo "" >> $OUT_FILE
     echo "See [NIXOS-MODULE.md](NIXOS-MODULE.md) for detailed documentation." >> $OUT_FILE
-    
+
     echo "Generated $OUT_FILE"
   '';
 
   # Main documentation generator
   generateDocs = pkgs.writeShellScriptBin "generate-docs" ''
     set -e
-    
+
     OUT_DIR=''${1:-./generated}
     mkdir -p $OUT_DIR
-    
+
     echo "Generating NVIDIA SDK documentation..."
     echo ""
-    
+
     # Copy generated files
     cp ${compatibilityMatrix} $OUT_DIR/compatibility-matrix.md
     echo "✓ Generated compatibility-matrix.md"
-    
+
     cp ${packageInventory} $OUT_DIR/package-inventory.md
     echo "✓ Generated package-inventory.md"
-    
+
     # Generate module options
     ${generateModuleOptions} $OUT_DIR/module-options.md
     echo "✓ Generated module-options.md"
-    
+
     echo ""
     echo "Documentation generated in $OUT_DIR/"
     echo ""
@@ -148,12 +171,10 @@ let
 in
 {
   inherit generateDocs generateModuleOptions;
-  
+
   # Export generated files for inspection
-  files = {
-    inherit compatibilityMatrix packageInventory;
-  };
-  
+  files = { inherit compatibilityMatrix packageInventory; };
+
   # Run generator
   run = generateDocs;
 }

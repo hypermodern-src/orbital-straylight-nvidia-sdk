@@ -34,6 +34,7 @@ agenix --rekey
 
 ## Secrets
 
-- **encryption-key.age**: Symmetric key for encrypting non-redistributable packages (TensorRT-RTX, etc.)
+- **encryption-key.age**: Symmetric key for encrypting non-redistributable packages (TensorRT-RTX,
+  etc.)
 - **r2-credentials.age**: Cloudflare R2 API credentials
 - **nvidia-credentials.age**: NVIDIA Developer account credentials for automated downloads

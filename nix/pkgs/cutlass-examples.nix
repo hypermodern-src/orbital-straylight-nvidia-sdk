@@ -1,7 +1,7 @@
 {
   lib,
   devStdenv,
-  llvmPackages_20,  # Using patched llvmPackages_20 with sm_120 support
+  llvmPackages_20, # Using patched llvmPackages_20 with sm_120 support
   gcc15,
   cmake,
   ninja,
@@ -15,7 +15,7 @@ devStdenv.mkDerivation {
   pname = "cutlass-examples";
   version = versions.cutlass.version;
 
-  src = cutlass.src;
+  inherit (cutlass) src;
 
   nativeBuildInputs = [
     cmake
@@ -33,13 +33,13 @@ devStdenv.mkDerivation {
   NIX_CFLAGS_COMPILE = "--gcc-toolchain=${gcc15}";
 
   cmakeFlags = [
-    "-DCUTLASS_NVCC_ARCHS=120"  # Blackwell (sm_120)
+    "-DCUTLASS_NVCC_ARCHS=120" # Blackwell (sm_120)
     "-DCUTLASS_ENABLE_EXAMPLES=ON"
     "-DCUTLASS_ENABLE_TESTS=OFF"
     "-DCUTLASS_ENABLE_PROFILER=OFF"
     "-DCUDA_TOOLKIT_ROOT_DIR=${cuda}"
-    "-DCMAKE_CUDA_COMPILER=${cuda}/bin/nvcc"  # nvcc generates sm_120 device code
-    "-DCMAKE_CUDA_HOST_COMPILER=${llvmPackages_20.clang}/bin/clang++"  # Clang for host with sm_120 support
+    "-DCMAKE_CUDA_COMPILER=${cuda}/bin/nvcc" # nvcc generates sm_120 device code
+    "-DCMAKE_CUDA_HOST_COMPILER=${llvmPackages_20.clang}/bin/clang++" # Clang for host with sm_120 support
     "-DCMAKE_CUDA_ARCHITECTURES=120"
     "-DCMAKE_CXX_STANDARD=23"
     "-DCMAKE_CUDA_STANDARD=23"
@@ -71,6 +71,9 @@ devStdenv.mkDerivation {
     description = "CUTLASS ${version} examples";
     homepage = "https://github.com/NVIDIA/cutlass";
     license = lib.licenses.bsd3;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
   };
 }

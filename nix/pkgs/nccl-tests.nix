@@ -1,11 +1,12 @@
-{ lib
-, stdenv
-, fetchFromGitHub
-, cuda
-, nccl
-, openmpi
-, withMPI ? true
-, cudaArch ? if stdenv.hostPlatform.isAarch64 then "sm_100" else "sm_120"
+{
+  lib,
+  stdenv,
+  fetchFromGitHub,
+  cuda,
+  nccl,
+  openmpi,
+  withMPI ? true,
+  cudaArch ? if stdenv.hostPlatform.isAarch64 then "sm_100" else "sm_120",
 }:
 
 let
@@ -22,7 +23,11 @@ stdenv.mkDerivation {
     hash = "sha256-H9shp4fYW+dlyL9FZRxX761UCFR/pOBKNHfVme2TfJg=";
   };
 
-  buildInputs = [ cuda nccl ] ++ lib.optionals withMPI [ openmpi ];
+  buildInputs = [
+    cuda
+    nccl
+  ]
+  ++ lib.optionals withMPI [ openmpi ];
 
   enableParallelBuilding = true;
 
@@ -38,7 +43,8 @@ stdenv.mkDerivation {
   makeFlags = [
     "CUDA_HOME=${cuda}"
     "NCCL_HOME=${nccl}"
-  ] ++ lib.optionals withMPI [
+  ]
+  ++ lib.optionals withMPI [
     "MPI=1"
     "MPI_HOME=${openmpi}"
   ];
@@ -59,7 +65,10 @@ stdenv.mkDerivation {
     description = "NCCL Tests - Performance and correctness tests for NVIDIA NCCL";
     homepage = "https://github.com/NVIDIA/nccl-tests";
     license = lib.licenses.bsd3;
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
     maintainers = [ ];
   };
 }

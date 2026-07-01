@@ -19,7 +19,7 @@ extract.extract {
   src = fetchurl {
     # Live NVIDIA upstream redistributable.
     url = src-info.urls.upstream;
-    hash = src-info.hash;
+    inherit (src-info) hash;
   };
 
   runtime-inputs = [

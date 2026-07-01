@@ -178,13 +178,13 @@
 
   nsight = {
     compute = {
-      version = "2026.2.0.7";
+      version = "2026.2.0"; # matches nsight-compute-<ver> dir in the CUDA 13.3 .run
       x86_64-linux.path = "host/linux-desktop-glibc_2_11_3-x64";
       aarch64-linux.path = "host/linux-desktop-t210-a64";
     };
 
     systems = {
-      version = "2026.1.3.243";
+      version = "2026.1.3"; # matches nsight-systems-<ver> dir in the CUDA 13.3 .run
       x86_64-linux.path = "host-linux-x64";
       aarch64-linux.path = "host-linux-armv8";
     };

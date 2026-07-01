@@ -7,7 +7,10 @@ let
   user1 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ1ptqyz5C3YCcMgh3LUbXtjeS1rIZ5/6RHnH7D93Nqf";
   user2 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINbn+XF6n9v9VKLFGLBVz+G1LyL6GlcgZbIwhP89PPsp";
 
-  allKeys = [ user1 user2 ];
+  allKeys = [
+    user1
+    user2
+  ];
 in
 {
   # Symmetric encryption key for non-redistributable packages

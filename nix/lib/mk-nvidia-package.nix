@@ -7,47 +7,65 @@
 
 let
   # Validate package definition
-  validatePackageDef = def:
+  validatePackageDef =
+    def:
     let
-      required = [ "pname" "version" ];
-      hasSource = lib.any (s: lib.hasAttr s def) [ "src" "tarball" "container" "git" ];
+      required = [
+        "pname"
+        "version"
+      ];
+
+      hasSource = lib.any (s: lib.hasAttr s def) [
+        "src"
+        "tarball"
+        "container"
+        "git"
+      ];
     in
-      assert lib.assertMsg (lib.all (r: lib.hasAttr r def) required)
-        "mkNvidiaPackage: missing required fields: ${lib.concatStringsSep ", " (lib.filter (r: !lib.hasAttr r def) required)}";
-      assert lib.assertMsg hasSource
-        "mkNvidiaPackage: must specify one of: src, tarball, container, git";
-      def;
+
+    assert lib.assertMsg (lib.all (r: lib.hasAttr r def) required)
+      "mkNvidiaPackage: missing required fields: ${
+        lib.concatStringsSep ", " (lib.filter (r: !lib.hasAttr r def) required)
+      }";
+
+    assert lib.assertMsg hasSource "mkNvidiaPackage: must specify one of: src, tarball, container, git";
+    def;
 
 in
 {
   # Main package builder function
-  mkNvidiaPackage = 
-    { pname
-    , version
-    , src ? null
-    , tarball ? null
-    , container ? null
-    , git ? null
-    , nativeBuildInputs ? [ ]
-    , buildInputs ? [ ]
-    , runtimeInputs ? [ ]
-    , installPhase ? null
-    , installScript ? ""
-    , postInstall ? ""
-    , fixupPhase ? null
-    , meta ? { }
-    , passthru ? { }
-    , ...
-    } @ args:
+  mkNvidiaPackage =
+    {
+      pname,
+      version,
+      src ? null,
+      tarball ? null,
+      container ? null,
+      git ? null,
+      nativeBuildInputs ? [ ],
+      buildInputs ? [ ],
+      runtimeInputs ? [ ],
+      installPhase ? null,
+      installScript ? "",
+      postInstall ? "",
+      fixupPhase ? null,
+      meta ? { },
+      passthru ? { },
+      ...
+    }@args:
     let
-      validated = validatePackageDef args;
-      
+
       # Default metadata
       defaultMeta = {
         description = "NVIDIA ${pname} ${version}";
         homepage = "https://developer.nvidia.com/${pname}";
         license = lib.licenses.unfree;
-        platforms = [ "x86_64-linux" "aarch64-linux" ];
+
+        platforms = [
+          "x86_64-linux"
+          "aarch64-linux"
+        ];
+
         maintainers = [ ];
       };
 
@@ -56,65 +74,81 @@ in
     {
       # Return the package definition (not built yet)
       inherit pname version;
-      inherit src tarball container git;
-      
+      inherit
+        src
+        tarball
+        container
+        git
+        ;
+
       buildConfig = {
         inherit nativeBuildInputs buildInputs runtimeInputs;
-        installPhase = installPhase;
-        installScript = installScript;
-        postInstall = postInstall;
-        fixupPhase = fixupPhase;
+
+        inherit installPhase;
+        inherit installScript;
+        inherit postInstall;
+        inherit fixupPhase;
       };
-      
+
       meta = mergedMeta;
       inherit passthru;
     };
 
   # Build a package definition with actual stdenv
-  buildPackage = { stdenv, modern, pkgDef }:
-    stdenv.mkDerivation ({
+  buildPackage =
+    {
+      stdenv,
+      modern,
+      pkgDef,
+    }:
+    stdenv.mkDerivation {
       inherit (pkgDef) pname version;
-      
-      src = 
+
+      src =
         if pkgDef ? tarball && pkgDef.tarball != null then
           stdenv.fetchurl {
             url = pkgDef.tarball.urls.mirror or pkgDef.tarball.urls.upstream;
             hash = pkgDef.tarball.hash;
           }
+
         else if pkgDef ? container && pkgDef.container != null then
           modern.container-to-nix {
             name = "${pkgDef.pname}-${pkgDef.version}-container";
             imageRef = pkgDef.container.imageRef;
             hash = pkgDef.container.hash;
           }
+
         else if pkgDef ? git && pkgDef.git != null then
           stdenv.fetchFromGitHub {
-            inherit (pkgDef.git) owner repo rev hash;
+            inherit (pkgDef.git)
+              owner
+              repo
+              rev
+              hash
+              ;
           }
         else
           pkgDef.src;
-      
+
       nativeBuildInputs = pkgDef.buildConfig.nativeBuildInputs;
       buildInputs = pkgDef.buildConfig.buildInputs;
-      
-      installPhase = 
+
+      installPhase =
         if pkgDef.buildConfig.installPhase != null then
           pkgDef.buildConfig.installPhase
-        else ''
-          runHook preInstall
-          mkdir -p $out
-          ${pkgDef.buildConfig.installScript}
-          runHook postInstall
-        '';
-      
+        else
+          ''
+            runHook preInstall
+            mkdir -p $out
+            ${pkgDef.buildConfig.installScript}
+            runHook postInstall
+          '';
+
       postInstall = pkgDef.buildConfig.postInstall;
-      
-      fixupPhase = 
-        if pkgDef.buildConfig.fixupPhase != null then
-          pkgDef.buildConfig.fixupPhase
-        else null;
-      
-      meta = pkgDef.meta;
-      passthru = pkgDef.passthru;
-    });
+
+      fixupPhase = if pkgDef.buildConfig.fixupPhase != null then pkgDef.buildConfig.fixupPhase else null;
+
+      inherit (pkgDef) meta;
+      inherit (pkgDef) passthru;
+    };
 }

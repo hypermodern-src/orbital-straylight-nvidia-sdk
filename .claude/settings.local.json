@@ -1,8 +1,5 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(git checkout:*)",
-      "Bash(git add:*)"
-    ]
-  }
+	"permissions": {
+		"allow": ["Bash(git checkout:*)", "Bash(git add:*)"]
+	}
 }

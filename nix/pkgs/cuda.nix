@@ -41,7 +41,7 @@ let
       pkgs.which
       pkgs.xz
       pkgs.zlib
-      libxml2-legacy  # From outer scope
+      libxml2-legacy # From outer scope
     ];
   };
 
@@ -53,8 +53,8 @@ stdenv.mkDerivation {
   inherit version;
 
   src = fetchurl {
-    url = src-info.url;
-    hash = src-info.hash;
+    inherit (src-info) url;
+    inherit (src-info) hash;
   };
 
   nativeBuildInputs = [
@@ -82,55 +82,55 @@ stdenv.mkDerivation {
   '';
 
   installPhase = ''
-    mkdir -p $out/lib64/pkgconfig
-    cat > $out/lib64/pkgconfig/cuda.pc << 'EOF'
-prefix=$out
-libdir=''${prefix}/lib64
-includedir=''${prefix}/include
+        mkdir -p $out/lib64/pkgconfig
+        cat > $out/lib64/pkgconfig/cuda.pc << 'EOF'
+    prefix=$out
+    libdir=''${prefix}/lib64
+    includedir=''${prefix}/include
 
-Name: CUDA
-Description: NVIDIA CUDA Toolkit
-Version: ${version}
-Libs: -L''${libdir} -lcudart
-Cflags: -I''${includedir}
-EOF
+    Name: CUDA
+    Description: NVIDIA CUDA Toolkit
+    Version: ${version}
+    Libs: -L''${libdir} -lcudart
+    Cflags: -I''${includedir}
+    EOF
 
-    # Create symlink for Clang 21+ compatibility (texture_fetch_functions.h -> texture_indirect_functions.h)
-    echo "Creating texture_fetch_functions.h symlinks for Clang CUDA compiler compatibility..."
-    for target_dir in $out/include $out/targets/*/include; do
-      if [ -d "$target_dir" ] && [ -f "$target_dir/texture_indirect_functions.h" ]; then
-        echo "  Symlinking in: $target_dir"
-        ( cd "$target_dir" && ln -sf texture_indirect_functions.h texture_fetch_functions.h )
-        ls -la "$target_dir/texture_fetch_functions.h"
-      fi
+        # Create symlink for Clang 21+ compatibility (texture_fetch_functions.h -> texture_indirect_functions.h)
+        echo "Creating texture_fetch_functions.h symlinks for Clang CUDA compiler compatibility..."
+        for target_dir in $out/include $out/targets/*/include; do
+          if [ -d "$target_dir" ] && [ -f "$target_dir/texture_indirect_functions.h" ]; then
+            echo "  Symlinking in: $target_dir"
+            ( cd "$target_dir" && ln -sf texture_indirect_functions.h texture_fetch_functions.h )
+            ls -la "$target_dir/texture_fetch_functions.h"
+          fi
+        done
+
+        # Wrap fatbinary to strip unsupported flags
+        if [ -f $out/bin/fatbinary ]; then
+          cp $out/bin/fatbinary $out/bin/.fatbinary-real
+          cat > $out/bin/fatbinary <<EOFWRAPPER
+    #!/bin/sh
+    args=""
+    for arg in "\$@"; do
+      case "\$arg" in
+        -image|-image=*|--image|--image=*)
+          # Skip -image flags (Clang compatibility)
+          ;;
+        --cicc-cmdline=*)
+          # Strip prec_* options from cicc-cmdline that fatbinary doesn't understand
+          value="\''${arg#--cicc-cmdline=}"
+          value=\''$(echo "\$value" | sed 's/-prec_div=[^ ]*//g; s/-prec_sqrt=[^ ]*//g; s/-fmad=[^ ]*//g; s/-ftz=[^ ]*//g')
+          args="\$args --cicc-cmdline=\"\$value\""
+          ;;
+        *)
+          args="\$args \$arg"
+          ;;
+      esac
     done
-
-    # Wrap fatbinary to strip unsupported flags
-    if [ -f $out/bin/fatbinary ]; then
-      cp $out/bin/fatbinary $out/bin/.fatbinary-real
-      cat > $out/bin/fatbinary <<EOFWRAPPER
-#!/bin/sh
-args=""
-for arg in "\$@"; do
-  case "\$arg" in
-    -image|-image=*|--image|--image=*)
-      # Skip -image flags (Clang compatibility)
-      ;;
-    --cicc-cmdline=*)
-      # Strip prec_* options from cicc-cmdline that fatbinary doesn't understand
-      value="\''${arg#--cicc-cmdline=}"
-      value=\''$(echo "\$value" | sed 's/-prec_div=[^ ]*//g; s/-prec_sqrt=[^ ]*//g; s/-fmad=[^ ]*//g; s/-ftz=[^ ]*//g')
-      args="\$args --cicc-cmdline=\"\$value\""
-      ;;
-    *)
-      args="\$args \$arg"
-      ;;
-  esac
-done
-eval exec "$out/bin/.fatbinary-real" \$args
-EOFWRAPPER
-      chmod +x $out/bin/fatbinary
-    fi
+    eval exec "$out/bin/.fatbinary-real" \$args
+    EOFWRAPPER
+          chmod +x $out/bin/fatbinary
+        fi
   '';
 
   fixupPhase = ''
