@@ -5,31 +5,30 @@
 #
 # This avoids nixpkgs' torch/CUDA which would rebuild NCCL, magma, etc.
 
-{
-  lib,
-  stdenv,
-  python312,
-  autoPatchelfHook,
-  findutils,
-  containerSrc,
-  nvidia-sdk,
-  makeWrapper,
-  fetchPypi,
-
-  # System libs needed by NGC wheels
-  zlib,
-  openssl,
-  libffi,
-  ncurses,
-  readline,
-  bzip2,
-  xz,
-  libxml2,
-  curl,
-  numactl,
-  rdma-core,
-  ucx,
-  zeromq,
+{ lib
+, stdenv
+, python312
+, autoPatchelfHook
+, findutils
+, containerSrc
+, nvidia-sdk
+, makeWrapper
+, fetchPypi
+, # System libs needed by NGC wheels
+  zlib
+, openssl
+, libffi
+, ncurses
+, readline
+, bzip2
+, xz
+, libxml2
+, curl
+, numactl
+, rdma-core
+, ucx
+, zeromq
+,
 }:
 
 let
@@ -97,11 +96,11 @@ let
       libxml2
       curl
       numactl
-      rdma-core       # libibverbs
-      ucx             # libucp, libuct, libucs
-      zeromq          # libzmq
+      rdma-core # libibverbs
+      ucx # libucp, libuct, libucs
+      zeromq # libzmq
       nvidia-sdk
-      python          # libpython3.12.so
+      python # libpython3.12.so
     ];
 
     autoPatchelfIgnoreMissingDeps = [
@@ -190,7 +189,8 @@ let
         $src/usr/lib/python3.12/dist-packages \
         $src/usr/local/lib/python3.12/dist-packages \
         $src/opt/tritonserver/python \
-        $src/opt/tensorrt_llm/lib/python3.12/site-packages
+        $src/opt/tensorrt_llm/lib/python3.12/site-packages \
+        $src/opt/venv-tritonserver/lib/python3.12/site-packages
       do
         if [ -d "$pydir" ]; then
           echo "Copying Python packages from $pydir"
@@ -214,6 +214,10 @@ let
         "$src/usr/local/cuda/lib64"
         "$src/usr/local/cuda/extras/CUPTI/lib64"
         "$src/usr/lib/llvm-18/lib"
+        # NGC 26.06 moved Python packages into a venv; torch/tensorrt_llm ship
+        # their own CUDA-linked .so's under the venv site-packages.
+        "$src/opt/venv-tritonserver/lib/python3.12/site-packages/torch/lib"
+        "$src/opt/venv-tritonserver/lib/python3.12/site-packages/tensorrt_llm/libs"
       )
 
       for libdir in "''${libdirs[@]}"; do

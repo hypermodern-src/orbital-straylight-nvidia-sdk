@@ -1,79 +1,89 @@
 # nvidia-sdk version configuration
-# NGC 25.12 — Canonical release for SM120 (Blackwell) and SM90 (Hopper)
+# CUDA 13.3.0 toolkit — Canonical release for SM120 (Blackwell) and SM90 (Hopper)
 # Update via: `nix run .#update`
+#
+# NOTE (toolkit vs container split): the redistributable toolkit below is on
+# CUDA 13.3 (2026-05-26 release), but the NGC container (torch + TensorRT-LLM)
+# is still built against CUDA 13.1 — NVIDIA has not shipped a 13.3 NGC container
+# as of NGC 26.06. This is safe because the NGC python/torch closure bundles its
+# own CUDA runtime libs (libcudart/libcublas/libcudnn/libnccl/…) from the
+# container and resolves them first on LD_LIBRARY_PATH; the 13.3 toolkit is what
+# *user* code (nvcc, cutlass, headers) compiles against. See nix/pkgs/ngc-python.nix.
 
 {
   # ════════════════════════════════════════════════════════════════════════════
-  # NGC 25.12 — The Standard
+  # NGC 26.06 — newest available (torch/TRT-LLM still CUDA 13.1 upstream)
   # ════════════════════════════════════════════════════════════════════════════
 
   ngc = {
-    version = "25.12";
-    cuda = "13.1";
-    driver = "590.44.01";
-    cudnn = "9.17.0.29";
-    nccl = "2.28.9";
+    version = "26.06";
+    cuda = "13.3";
+    driver = "610.43.02";
+    cudnn = "9.23.2.1";
+    nccl = "2.30.7";
     tensorrt = "10.15.1.29";
-    cutlass = "4.3.3";
-    triton = "25.12";
+    cutlass = "4.5.2";
+    triton = "26.06";
   };
 
   # ════════════════════════════════════════════════════════════════════════════
-  # CUDA 13.1 — Current
+  # CUDA 13.3.0 — Current (released 2026-05-26)
   # ════════════════════════════════════════════════════════════════════════════
 
   cuda = {
-    version = "13.1";
-    driver = "590.44.01";
+    version = "13.3";
+    driver = "610.43.02";
 
     x86_64-linux = {
-      url = "https://developer.download.nvidia.com/compute/cuda/13.1.0/local_installers/cuda_13.1.0_590.44.01_linux.run";
-      hash = "sha256-a0/fJpSz16+8Um8mQStM9PBQsgIyRFUFMwcxD1OzI6c=";
+      url = "https://developer.download.nvidia.com/compute/cuda/13.3.0/local_installers/cuda_13.3.0_610.43.02_linux.run";
+      hash = "sha256-X3lIi1f+aTa8laVvm34oOKsvLuMxOxAIlCIG7r4GNS0=";
     };
 
     aarch64-linux = {
-      url = "https://developer.download.nvidia.com/compute/cuda/13.1.0/local_installers/cuda_13.1.0_590.44.01_linux_sbsa.run";
-      hash = "sha256-Bs2kmnAxscmfeEI3vlyFJhk3nLupVVA2BFBEud3JkkA=";
+      url = "https://developer.download.nvidia.com/compute/cuda/13.3.0/local_installers/cuda_13.3.0_610.43.02_linux_sbsa.run";
+      hash = "sha256-lOxFchl7ZVMtzz0ydGBBfGUn+kLe2dUBDgbduJ6HjUw=";
     };
   };
 
   cudnn = {
-    version = "9.17.0.29";
+    version = "9.23.2.1";
     x86_64-linux = {
       urls = {
-        upstream = "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-9.17.0.29_cuda13-archive.tar.xz";
+        upstream = "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-9.23.2.1_cuda13-archive.tar.xz";
       };
-      hash = "sha256-RV8VB1STyCoaiFCq5hIPP6b35FfL71bByy4KYYtbUJ4=";
+      hash = "sha256-WXyqj87H+rzoLDT1qd+pPbQnlUKxfbkvJzkczV1rL8Y=";
     };
 
     aarch64-linux = {
       urls = {
-        upstream = "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-sbsa/cudnn-linux-sbsa-9.17.0.29_cuda13-archive.tar.xz";
+        upstream = "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-sbsa/cudnn-linux-sbsa-9.23.2.1_cuda13-archive.tar.xz";
       };
-      hash = "sha256-Gb5tjytjpFnmdYGFwej+7d7NtLVnF9xOS7z+MKBhm30=";
+      hash = "sha256-2SzgNs93I3dxs/Zyobpq6yhPmwDOdnehe4pAf+n6NXw=";
     };
   };
 
-  # NCCL: NVIDIA's own redist .txz (top-level nccl_<ver>+cuda13.0_<arch>/{lib,include}).
-  # CUDA 13 build to match the 13.1 toolkit. Hashes are the live upstream tarballs.
+  # NCCL: NVIDIA's own redist .txz (top-level nccl_<ver>+cuda13.3_<arch>/{lib,include}).
+  # CUDA 13.3 build to match the 13.3 toolkit. Hashes are the live upstream tarballs.
   nccl = {
-    version = "2.28.9";
+    version = "2.30.7";
 
     x86_64-linux = {
       urls = {
-        upstream = "https://developer.download.nvidia.com/compute/redist/nccl/v2.28.9/nccl_2.28.9-1+cuda13.0_x86_64.txz";
+        upstream = "https://developer.download.nvidia.com/compute/redist/nccl/v2.30.7/nccl_2.30.7-1+cuda13.3_x86_64.txz";
       };
-      hash = "sha256-Gu0BXAcRTd8E7Zl8vIfx0GgLbJHSKwPJpniqqfbJBU0=";
+      hash = "sha256-xkNVh2F4kxpj9/kKmdpirklmzYyapmrN0euhA1nGTHU=";
     };
 
     aarch64-linux = {
       urls = {
-        upstream = "https://developer.download.nvidia.com/compute/redist/nccl/v2.28.9/nccl_2.28.9-1+cuda13.0_aarch64.txz";
+        upstream = "https://developer.download.nvidia.com/compute/redist/nccl/v2.30.7/nccl_2.30.7-1+cuda13.3_aarch64.txz";
       };
-      hash = "sha256-LITc7nR6VSuh+Fjn26ZvKwt6k/ScEncvKcvEnq0mypw=";
+      hash = "sha256-7k63tpC60kygfwwiRCOlbHw+Vw+81UrSj1JkMSm3ssI=";
     };
   };
 
+  # TensorRT: latest GA (10.15.1.29). NVIDIA ships it built for cuda-13.1; TRT is
+  # forward-compatible within the CUDA 13.x series, so it runs on the 13.3 toolkit.
   tensorrt = {
     version = "10.15.1.29";
 
@@ -108,27 +118,27 @@
   };
 
   cutensor = {
-    version = "2.4.1.4";
+    version = "2.7.0.5";
 
     x86_64-linux = {
       urls = {
-        upstream = "https://developer.download.nvidia.com/compute/cutensor/redist/libcutensor/linux-x86_64/libcutensor-linux-x86_64-2.4.1.4_cuda13-archive.tar.xz";
+        upstream = "https://developer.download.nvidia.com/compute/cutensor/redist/libcutensor/linux-x86_64/libcutensor-linux-x86_64-2.7.0.5_cuda13-archive.tar.xz";
       };
-      hash = "sha256-IfsKmjt7ZmMiNme1h/KrHFTkphyXX+oPnU9W2cM/Mf4=";
+      hash = "sha256-jxXICUB1vaEi1B4NHnpT1z/JVVUkhi0XEEYXiiQ0DNQ=";
     };
 
     aarch64-linux = {
       urls = {
-        upstream = "https://developer.download.nvidia.com/compute/cutensor/redist/libcutensor/linux-sbsa/libcutensor-linux-sbsa-2.4.1.4_cuda13-archive.tar.xz";
+        upstream = "https://developer.download.nvidia.com/compute/cutensor/redist/libcutensor/linux-sbsa/libcutensor-linux-sbsa-2.7.0.5_cuda13-archive.tar.xz";
       };
-      hash = "sha256-m6/9Nli39NotL5TSPDrN220SximX09o5p3SgWP7wSqU=";
+      hash = "sha256-2BrNdJVSIU667zYGvdQffDc7jD/5UkzHBQpyg3J3eVI=";
     };
   };
 
   cutlass = {
-    version = "4.3.3";
-    url = "https://github.com/NVIDIA/cutlass/archive/refs/tags/v4.3.3.zip";
-    hash = "sha256-uOfSEjbwn/edHEgBikC9wAarn6c6T71ebPg74rv2qlw=";
+    version = "4.5.2";
+    url = "https://github.com/NVIDIA/cutlass/archive/refs/tags/v4.5.2.zip";
+    hash = "sha256-5SMEfoqB2QXRfH5wBwTKKjez0x2zhR8T8EA0bqPMqwM=";
   };
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -142,17 +152,23 @@
   #   crane export nvcr.io/nvidia/tritonserver:25.12-trtllm-python-py3 - | nix hash file --sri /dev/stdin
 
   triton-trtllm-container = {
-    version = "25.12";
+    version = "26.06";
 
-    # Same image ref for both - crane will pull the correct arch
+    # Same image ref for both - crane will pull the correct arch.
+    # Hashes are recursive-NAR FODs of the extracted rootfs (see
+    # nix/modern.nix container-to-nix: `crane export | tar -x`), filled from the
+    # build's got-hash, not `nix hash file` of the tar stream.
     x86_64-linux = {
-      ref = "nvcr.io/nvidia/tritonserver:25.12-trtllm-python-py3";
-      hash = "sha256-WvHGKXzu1oJk8RRorIDaF9Ii6AuK6eAD7SIWRxs0vkk=";
+      ref = "nvcr.io/nvidia/tritonserver:26.06-trtllm-python-py3";
+      hash = "sha256-cAJ5w2+7RWmVhyDCO+LQTha/tBbjwzCXuRrz0uh5xQM=";
     };
 
     aarch64-linux = {
-      ref = "nvcr.io/nvidia/tritonserver:25.12-trtllm-python-py3";
-      hash = "sha256-9hMiF7lZKLI64EMPQsb924VDG6L3wsTESmEVd85zAAU=";
+      ref = "nvcr.io/nvidia/tritonserver:26.06-trtllm-python-py3";
+      # TODO: recompute on an aarch64 builder — container-to-nix (nix/modern.nix)
+      # extracts the host-arch platform, so this recursive-NAR FOD hash must be
+      # produced on aarch64-linux. Placeholder until then.
+      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
     };
   };
 
@@ -162,13 +178,13 @@
 
   nsight = {
     compute = {
-      version = "2025.4.0";
+      version = "2026.2.0.7";
       x86_64-linux.path = "host/linux-desktop-glibc_2_11_3-x64";
       aarch64-linux.path = "host/linux-desktop-t210-a64";
     };
 
     systems = {
-      version = "2025.5.2";
+      version = "2026.1.3.243";
       x86_64-linux.path = "host-linux-x64";
       aarch64-linux.path = "host-linux-armv8";
     };
@@ -204,15 +220,15 @@
   # ════════════════════════════════════════════════════════════════════════════
 
   driver = {
-    version = "590.44.01";
+    version = "610.43.02";
 
     x86_64-linux = {
-      url = "https://us.download.nvidia.com/XFree86/Linux-x86_64/590.44.01/NVIDIA-Linux-x86_64-590.44.01.run";
+      url = "https://us.download.nvidia.com/XFree86/Linux-x86_64/610.43.02/NVIDIA-Linux-x86_64-610.43.02.run";
       hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # TODO: fetch
     };
 
     aarch64-linux = {
-      url = "https://us.download.nvidia.com/XFree86/Linux-aarch64/590.44.01/NVIDIA-Linux-aarch64-590.44.01.run";
+      url = "https://us.download.nvidia.com/XFree86/Linux-aarch64/610.43.02/NVIDIA-Linux-aarch64-610.43.02.run";
       hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # TODO: fetch
     };
 
