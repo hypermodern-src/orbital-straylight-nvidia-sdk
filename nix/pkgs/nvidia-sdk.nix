@@ -1,27 +1,27 @@
-{
-  lib,
-  stdenv,
-  symlinkJoin,
-  makeWrapper,
-  patchelf,
-  bash,
-  coreutils,
-  cuda,
-  cudnn,
-  cutensor,
-  cutlass,
-  dbus,
-  file,
-  findutils,
-  gnugrep,
-  libglvnd,
-  mesa,
-  nccl,
-  qt6,
-  resholve,
-  tensorrt,
-  versions,
-  xorg,
+{ lib
+, stdenv
+, symlinkJoin
+, makeWrapper
+, patchelf
+, bash
+, coreutils
+, cuda
+, cudnn
+, cutensor
+, cutlass
+, dbus
+, file
+, findutils
+, gnugrep
+, libglvnd
+, mesa
+, nccl
+, qt6
+, resholve
+, tensorrt
+, versions
+, xorg
+,
 }:
 
 let
@@ -285,7 +285,7 @@ stdenv.mkDerivation {
       qtLibs = "${qt6.qtbase}/lib";
       mesaLibs = "${mesa}/lib:${libglvnd}/lib";
       x11Libs = "${xorg.libX11}/lib:${xorg.libXext}/lib:${xorg.libXrender}/lib:${xorg.libxcb}/lib";
-      sysLibs = "${stdenv.cc.cc.lib}/lib:${dbus}/lib";
+      sysLibs = "${stdenv.cc.cc.lib}/lib:${dbus.lib}/lib";
       nsightLibs = "$out/${ncuDir}/${ncuHostPath}:$out/${nsysDir}/${nsysHostPath}:$out/${nsysDir}/target-linux-${
         if stdenv.hostPlatform.isAarch64 then "sbsa" else "x64"
       }";
