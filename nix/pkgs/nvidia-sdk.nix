@@ -10,16 +10,21 @@
 , cutensor
 , cutlass
 , dbus
+, fontconfig
 , file
 , findutils
+, glib
 , gnugrep
 , libglvnd
+, libpng
+, libxkbcommon
 , mesa
 , nccl
 , qt6
 , resholve
 , tensorrt
 , versions
+, zstd
 , xorg
 ,
 }:
@@ -282,23 +287,37 @@ stdenv.mkDerivation {
 
   postFixup =
     let
-      qtLibs = "${qt6.qtbase}/lib";
-      mesaLibs = "${mesa}/lib:${libglvnd}/lib";
-      x11Libs = "${xorg.libX11}/lib:${xorg.libXext}/lib:${xorg.libXrender}/lib:${xorg.libxcb}/lib";
-      sysLibs = "${stdenv.cc.cc.lib}/lib:${dbus.lib}/lib";
-      nsightLibs = "$out/${ncuDir}/${ncuHostPath}:$out/${nsysDir}/${nsysHostPath}:$out/${nsysDir}/target-linux-${
+      # NVIDIA's own bundled libs (nsight ships a complete Qt6 + support libs).
+      # These MUST come first on RPATH so the artifact's own ABI-matched libs
+      # win over any nixpkgs equivalent — mixing nixpkgs Qt with the bundle
+      # crashes with Qt_6_PRIVATE_API symbol errors.
+      bundleLibs = "$out/${ncuDir}/${ncuHostPath}:$out/${nsysDir}/${nsysHostPath}:$out/${nsysDir}/target-linux-${
         if stdenv.hostPlatform.isAarch64 then "sbsa" else "x64"
       }";
+      # Genuine system floor the bundle cannot carry (glibc-adjacent, glib,
+      # fontconfig, X11/xcb, GL/EGL, xkbcommon, png, zstd, dbus). NO Qt here.
+      systemLibs = lib.concatStringsSep ":" [
+        "${stdenv.cc.cc.lib}/lib"
+        "${dbus.lib}/lib"
+        "${glib.out}/lib"
+        "${fontconfig.lib}/lib"
+        "${libpng.out}/lib"
+        "${libxkbcommon.out}/lib"
+        "${zstd.out}/lib"
+        "${mesa}/lib"
+        "${libglvnd}/lib"
+        "${xorg.libX11}/lib"
+        "${xorg.libXext}/lib"
+        "${xorg.libXrender}/lib"
+        "${xorg.libxcb}/lib"
+      ];
       dynamicLinker = "$(cat ${stdenv.cc}/nix-support/dynamic-linker)";
     in
     ''
       ${patchElfScript}/bin/patch-nvidia-elfs \
         "$out" \
-        "${qtLibs}" \
-        "${mesaLibs}" \
-        "${x11Libs}" \
-        "${sysLibs}" \
-        "${nsightLibs}" \
+        "${bundleLibs}" \
+        "${systemLibs}" \
         "${dynamicLinker}"
     '';
 

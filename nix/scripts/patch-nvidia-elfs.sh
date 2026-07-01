@@ -1,38 +1,48 @@
 #!/usr/bin/env bash
-# Patches ELF files in NVIDIA SDK with proper library paths
-# Usage: patch-nvidia-elfs.sh <output-dir> <qt-libs> <mesa-libs> <x11-libs> <sys-libs> <nsight-libs> <dynamic-linker>
+# Patches ELF files in the NVIDIA SDK with proper library paths.
+#
+# Usage: patch-nvidia-elfs.sh <output-dir> <bundle-libs> <system-libs> <dynamic-linker>
+#
+# Ordering is load-bearing. NVIDIA's redistributables (nsight, etc.) ship their
+# OWN complete Qt6 and various support libraries under their host dirs. We must
+# let those bundled libs win: if a nixpkgs Qt (or other lib) lands on RPATH
+# ahead of the bundle, the process mixes two ABI-incompatible builds of the same
+# library and dies with e.g. "libQt6DBus.so.6: undefined symbol ...
+# Qt_6_PRIVATE_API". So RPATH order is:
+#
+#   $out/lib : $out/lib64 : <bundle-libs> : <system-libs> : <existing>
+#
+# i.e. the artifact's own libs first, and nixpkgs only fills the genuine system
+# floor (glibc-adjacent, glib, fontconfig, X11/xcb, GL, …) that the bundle does
+# not and cannot carry. We deliberately do NOT inject nixpkgs Qt.
 
 set -euo pipefail
 
 output_dir="$1"
-qt_libs="$2"
-mesa_libs="$3"
-x11_libs="$4"
-sys_libs="$5"
-nsight_libs="$6"
-dynamic_linker="$7"
+bundle_libs="$2"
+system_libs="$3"
+dynamic_linker="$4"
 
-extra_libs="$qt_libs:$mesa_libs:$x11_libs:$sys_libs:$nsight_libs"
+echo "Patching ELF files (bundle libs take precedence over the system floor)..."
 
-echo "Patching ELF files with Qt6/Mesa/X11/Nsight libraries..."
-
-# Patch ELF files in output directory
 find "$output_dir" -type f \( -executable -o -name "*.so*" \) 2>/dev/null | while read -r f; do
-  # Skip symlinks
-  [ -L "$f" ] && continue
+	# Skip symlinks
+	[ -L "$f" ] && continue
 
-  # Skip non-ELF files
-  file "$f" | grep -q ELF || continue
+	# Skip non-ELF files
+	file "$f" | grep -q ELF || continue
 
-  # Set interpreter for executables
-  if file "$f" | grep -q "executable"; then
-    patchelf --set-interpreter "$dynamic_linker" "$f" 2>/dev/null || true
-  fi
+	# Set interpreter for executables
+	if file "$f" | grep -q "executable"; then
+		patchelf --set-interpreter "$dynamic_linker" "$f" 2>/dev/null || true
+	fi
 
-  # Update rpath
-  existing=$(patchelf --print-rpath "$f" 2>/dev/null || echo "")
-  new_rpath="$output_dir/lib:$output_dir/lib64:$extra_libs${existing:+:$existing}"
-  patchelf --force-rpath --set-rpath "$new_rpath" "$f" 2>/dev/null || true
+	# Update rpath: bundle first, then the nixpkgs system floor, then whatever the
+	# object already had. Bundle-before-system is what prevents the Qt (and other)
+	# version-skew crashes.
+	existing=$(patchelf --print-rpath "$f" 2>/dev/null || echo "")
+	new_rpath="$output_dir/lib:$output_dir/lib64:$bundle_libs:$system_libs${existing:+:$existing}"
+	patchelf --force-rpath --set-rpath "$new_rpath" "$f" 2>/dev/null || true
 done
 
 echo "ELF patching complete."
