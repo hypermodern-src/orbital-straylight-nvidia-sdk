@@ -96,6 +96,7 @@ let
     , bundleDirs ? [ ]
     , systemFloor ? [ ]
     , ignore ? [ ]
+    , outIsBundle ? false
     ,
     }:
     let
@@ -103,13 +104,15 @@ let
       bundleArg = lib.concatStringsSep ":" bundleDirs;
       floorArg = lib.concatStringsSep ":" systemFloor;
       ignoreArg = lib.concatStringsSep " " ignore;
+      outIsBundleArg = if outIsBundle then "1" else "0";
     in
     ''
       ${final.bash}/bin/bash ${script} \
         "${out}" \
         "${bundleArg}" \
         "${floorArg}" \
-        "${ignoreArg}"
+        "${ignoreArg}" \
+        "${outIsBundleArg}"
     '';
 
 in

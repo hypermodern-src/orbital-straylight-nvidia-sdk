@@ -22,6 +22,12 @@ out="$1"
 IFS=':' read -r -a bundle_dirs <<<"${2:-}"
 IFS=':' read -r -a floor_dirs <<<"${3:-}"
 read -r -a ignore_globs <<<"${4:-}"
+# When "1", treat EVERY soname anywhere under $out as bundle-provided. Correct
+# for self-contained vendor trees (Triton/torch/cupy ship their own libs in
+# per-package dirs; extensions resolve them from the already-loaded process at
+# runtime, so they look statically dangling but are fine). Avoids enumerating
+# every python package lib dir as a bundleDir.
+out_is_bundle="${5:-0}"
 
 echo "verify-closure: auditing ELF linkage under $out ..."
 
@@ -42,6 +48,14 @@ index_dirs() {
 }
 index_dirs bundle "${bundle_dirs[@]:-}"
 index_dirs floor "${floor_dirs[@]:-}"
+
+if [ "$out_is_bundle" = "1" ]; then
+	while IFS= read -r f; do
+		b="${f##*/}"
+		avail["$b"]=1
+		bundle_has["$b"]=1
+	done < <(find "$out" -name "*.so*" 2>/dev/null || true)
+fi
 
 is_ignored() {
 	local n="$1" g

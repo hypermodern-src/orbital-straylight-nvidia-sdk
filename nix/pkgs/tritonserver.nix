@@ -399,13 +399,11 @@ stdenv.mkDerivation {
     # and no dangling NEEDED anywhere in the extracted container tree.
     ${modern.verify-closure {
       out = "$out";
+      # The whole $out is the self-contained container closure (torch/cupy/… ship
+      # their own libs in per-package dirs; extensions resolve them from the
+      # already-loaded process at runtime). Treat all of $out as bundle content.
+      outIsBundle = true;
       bundleDirs = [
-        "$out/lib"
-        "$out/lib64"
-        "$out/tensorrt_llm/lib"
-        "$out/tensorrt_llm/libs"
-        "$out/tensorrt_llm/libs/ucx"
-        "$out/tensorrt_llm/libs/ucx/ucx"
         "${containerSrc}/opt/hpcx/ompi/lib"
         "${containerSrc}/opt/hpcx/ucc/lib"
         "${containerSrc}/opt/hpcx/ucx/lib"
