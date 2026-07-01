@@ -3,80 +3,82 @@
 # Extracted from the canonical NGC container.
 # Includes all backends: TensorRT, TensorRT-LLM, Python, ONNX, etc.
 
-{
-  lib,
-  stdenv,
-  fetchurl,
-  autoPatchelfHook,
-  modern,
-  file,
-  findutils,
-  gnugrep,
-  patchelf,
-  makeWrapper,
-  python312,
-  abseil-cpp,
-  acl,
-  audit,
-  boost,
-  bzip2,
-  curl,
-  cyrus_sasl,
-  db,
-  dbus,
-  e2fsprogs,
-  expat,
-  gdbm,
-  glib,
-  gnutls,
-  gperftools,
-  grpc,
-  icu,
-  keyutils,
-  libarchive,
-  libbsd,
-  libcap,
-  libcap_ng,
-  libevent,
-  libffi,
-  libgcrypt,
-  libgpg-error,
-  libkrb5,
-  libmd,
-  libselinux,
-  libsemanage,
-  libsepol,
-  libssh,
-  libuuid,
-  libxcrypt,
-  libxml2,
-  lz4,
-  ncurses,
-  nettle,
-  numactl,
-  rdma-core, # libibverbs/libmlx5/librdmacm — RDMA over the ConnectX/QSFP fabric
-  ucx, # libuct/libucp/libucs — UCX transports used by NCCL/TRT-LLM multi-node
-  zeromq, # libzmq — used by the TRT-LLM UCX wrapper
-  openldap,
-  # openmpi - use container's MPI to avoid nixpkgs CUDA dep chain
-  openssl,
-  pam,
-  pcre,
-  pcre2,
-  protobuf,
-  rapidjson,
-  re2,
-  readline,
-  rtmpdump,
-  systemd,
-  containerSrc,
-  tzdata,
-  util-linux,
-  versions,
-  xz,
-  zlib,
-  nvidia-sdk,
-  # Default to TRT-LLM (the full package)
+{ lib
+, stdenv
+, fetchurl
+, autoPatchelfHook
+, modern
+, file
+, findutils
+, gnugrep
+, patchelf
+, makeWrapper
+, python312
+, abseil-cpp
+, acl
+, audit
+, boost
+, bzip2
+, curl
+, cyrus_sasl
+, db
+, dbus
+, e2fsprogs
+, expat
+, gdbm
+, glib
+, gnutls
+, gperftools
+, grpc
+, icu
+, keyutils
+, libarchive
+, libbsd
+, libcap
+, libcap_ng
+, libevent
+, libffi
+, libgcrypt
+, libgpg-error
+, libkrb5
+, libmd
+, libselinux
+, libsemanage
+, libsepol
+, libssh
+, libuuid
+, libxcrypt
+, libxml2
+, lz4
+, ncurses
+, nettle
+, numactl
+, rdma-core
+, # libibverbs/libmlx5/librdmacm — RDMA over the ConnectX/QSFP fabric
+  ucx
+, # libuct/libucp/libucs — UCX transports used by NCCL/TRT-LLM multi-node
+  zeromq
+, # libzmq — used by the TRT-LLM UCX wrapper
+  openldap
+, # openmpi - use container's MPI to avoid nixpkgs CUDA dep chain
+  openssl
+, pam
+, pcre
+, pcre2
+, protobuf
+, rapidjson
+, re2
+, readline
+, rtmpdump
+, systemd
+, containerSrc
+, tzdata
+, util-linux
+, versions
+, xz
+, zlib
+, nvidia-sdk
+, # Default to TRT-LLM (the full package)
   ...
 }:
 
@@ -392,6 +394,28 @@ stdenv.mkDerivation {
         sed -i "1s|^#!.*python.*|#!${python}/bin/python|" "$f" 2>/dev/null || true
       fi
     done
+
+    # Structural gate: no ABI-shadow (bundle soname resolved to nixpkgs)
+    # and no dangling NEEDED anywhere in the extracted container tree.
+    ${modern.verify-closure {
+      out = "$out";
+      bundleDirs = [
+        "$out/lib"
+        "$out/lib64"
+        "$out/tensorrt_llm/lib"
+        "$out/tensorrt_llm/libs"
+        "$out/tensorrt_llm/libs/ucx"
+        "$out/tensorrt_llm/libs/ucx/ucx"
+        "${containerSrc}/opt/hpcx/ompi/lib"
+        "${containerSrc}/opt/hpcx/ucc/lib"
+        "${containerSrc}/opt/hpcx/ucx/lib"
+      ];
+      # Flatten runtime-inputs to individual lib dirs (verify-closure wants a
+      # list of dirs, not a colon-joined string).
+      systemFloor = lib.concatMap (d: let p = d.lib or d.out or d; in [ "${p}/lib" "${p}/lib64" ]) runtime-inputs;
+      # Provided by the host at runtime (driver / RDMA fabric hardware).
+      ignore = [ "libcuda.so.1" "libnvidia-ml.so.1" "libnvidia-*.so*" ];
+    }}
   '';
 
   preFixup = ''
