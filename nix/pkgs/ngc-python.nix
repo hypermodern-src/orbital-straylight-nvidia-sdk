@@ -28,6 +28,7 @@
 , numactl
 , rdma-core
 , ucx
+, libpng
 , zeromq
 ,
 }:
@@ -285,6 +286,8 @@ let
         "${stdenv.cc.cc.lib}/lib" # libstdc++.so.6 / libgcc_s.so.1
         "${openssl.out}/lib" # libcrypto.so.3 / libssl.so.3
         "${ncurses}/lib" # libtinfo.so.6
+        "${zeromq}/lib" # libzmq.so.5 (TRT-LLM UCX wrapper)
+        "${libpng.out}/lib" # libpng16.so.16 (torchvision image codec)
       ];
       ignore = [
         "libcuda.so.1"
@@ -293,6 +296,9 @@ let
         # Mellanox HCOLL collective offload — optional, host-provided when present
         # (same rationale as the autoPatchelfIgnoreMissingDeps entry above).
         "libhcoll.so*"
+        # Bundled LLVM 18 (clang/LTO/gold plugin); optional JIT path, matches the
+        # autoPatchelf ignore. Only the bundled clang toolchain needs it.
+        "libLLVM.so*"
       ];
     };
 
