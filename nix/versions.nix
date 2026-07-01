@@ -165,10 +165,10 @@
 
     aarch64-linux = {
       ref = "nvcr.io/nvidia/tritonserver:26.06-trtllm-python-py3";
-      # TODO: recompute on an aarch64 builder — container-to-nix (nix/modern.nix)
-      # extracts the host-arch platform, so this recursive-NAR FOD hash must be
-      # produced on aarch64-linux. Placeholder until then.
-      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      # recursive-NAR FOD of the extracted arm64 rootfs, computed on shimmer
+      # (aarch64 GB10) — container-to-nix (nix/modern.nix) extracts the host-arch
+      # platform, so this must be produced on aarch64-linux.
+      hash = "sha256-7FLyt80KGb5nkK9bXtZBnGC4fUAKs11pp/5Fg1qJNjM=";
     };
   };
 
