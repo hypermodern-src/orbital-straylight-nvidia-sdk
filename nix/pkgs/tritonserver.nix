@@ -426,6 +426,25 @@ stdenv.mkDerivation {
   '';
 
   postFixup = ''
+    # Sanitize RUNPATHs: autoPatchelf/patch-elf can record the container's arch
+    # libdirs (…/ngc-26.06-rootfs/{lib,usr/lib}/<arch>) — which hold the
+    # container glibc — into RUNPATH, where they shadow the Nix loader's glibc
+    # and crash startup (__nptl_change_stack_perm / GLIBC_PRIVATE). Strip any
+    # rootfs arch-libdir entry from every ELF; the fabric/CUDA libs we actually
+    # need are already resolved from $out/lib, nvidia-sdk, and /opt/hpcx.
+    echo "Stripping container arch libdirs from RUNPATHs..."
+    find $out -type f \( -name "*.so*" -o -perm -0100 \) 2>/dev/null | while read -r f; do
+      rp=$(patchelf --print-rpath "$f" 2>/dev/null) || continue
+      [ -z "$rp" ] && continue
+      case "$rp" in
+        *linux-gnu*|*rootfs/lib*|*rootfs/usr/lib*)
+          clean=$(echo "$rp" | tr ':' '\n' \
+            | grep -vE 'ngc-[0-9.]+-rootfs/(lib|usr/lib)/(aarch64|x86_64)-linux-gnu' \
+            | paste -sd: -)
+          patchelf --set-rpath "$clean" "$f" 2>/dev/null || true
+          ;;
+      esac
+    done
     # LD_LIBRARY_PATH set from wrapperLibPaths (glibc-free) — see binding above.
 
     for exe in $out/bin/*; do
