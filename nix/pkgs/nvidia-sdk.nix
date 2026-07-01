@@ -18,6 +18,8 @@
 , gnugrep
 , libdrm
 , libglvnd
+, libbpf
+, libcap
 , libgbm
 , libpng
 , libxkbcommon
@@ -35,6 +37,7 @@
 , versions
 , rdma-core
 , wayland
+, zlib
 , zstd
 , xorg
 ,
@@ -344,6 +347,9 @@ stdenv.mkDerivation {
         "${numactl}/lib"
         "${gmp}/lib"
         "${libxml2.out}/lib"
+        "${zlib}/lib"
+        "${libcap.lib}/lib"
+        "${libbpf}/lib"
       ];
       bundleLibs = lib.concatStringsSep ":" bundleDirs;
       systemLibs = lib.concatStringsSep ":" systemFloor;
@@ -380,6 +386,10 @@ stdenv.mkDerivation {
           # never exists in a Nix deployment — it is inert, so its unsatisfiable
           # dep is not a real runtime hazard.
           "libxml2.so.2"
+          # nsight bundles a legacy software-GL Mesa needing libglapi.so.0, which
+          # modern nixpkgs Mesa no longer ships as a separate lib. Only the SW-GL
+          # fallback path needs it; real rendering uses the driver GL. Inert here.
+          "libglapi.so.0"
         ];
       }}
     '';
