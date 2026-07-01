@@ -176,6 +176,7 @@ let
       "${containerSrc}/opt/hpcx/ompi/lib"
       "${containerSrc}/opt/hpcx/ucc/lib"
       "${containerSrc}/opt/hpcx/ucx/lib"
+      "${containerSrc}/usr/local/lib"
     ]
     # nixpkgs runtime deps (liblzma/zlib/openssl/nvidia-sdk/…). Safe to include
     # because the wrapper APPENDS (--suffix) this list, so the Nix loader's own
@@ -407,6 +408,7 @@ stdenv.mkDerivation {
         "${containerSrc}/opt/hpcx/ompi/lib"
         "${containerSrc}/opt/hpcx/ucc/lib"
         "${containerSrc}/opt/hpcx/ucx/lib"
+        "${containerSrc}/usr/local/lib"
       ];
       # Flatten runtime-inputs to individual lib dirs (verify-closure wants a
       # list of dirs, not a colon-joined string).
