@@ -14,16 +14,27 @@
 , file
 , findutils
 , glib
+, gmp
 , gnugrep
+, libdrm
 , libglvnd
+, libgbm
 , libpng
 , libxkbcommon
+, libxml2
 , mesa
+, ncurses
+, nspr
+, nss
+, numactl
+, modern
 , nccl
 , qt6
 , resholve
 , tensorrt
 , versions
+, rdma-core
+, wayland
 , zstd
 , xorg
 ,
@@ -289,14 +300,18 @@ stdenv.mkDerivation {
     let
       # NVIDIA's own bundled libs (nsight ships a complete Qt6 + support libs).
       # These MUST come first on RPATH so the artifact's own ABI-matched libs
-      # win over any nixpkgs equivalent — mixing nixpkgs Qt with the bundle
-      # crashes with Qt_6_PRIVATE_API symbol errors.
-      bundleLibs = "$out/${ncuDir}/${ncuHostPath}:$out/${nsysDir}/${nsysHostPath}:$out/${nsysDir}/target-linux-${
-        if stdenv.hostPlatform.isAarch64 then "sbsa" else "x64"
-      }";
-      # Genuine system floor the bundle cannot carry (glibc-adjacent, glib,
-      # fontconfig, X11/xcb, GL/EGL, xkbcommon, png, zstd, dbus). NO Qt here.
-      systemLibs = lib.concatStringsSep ":" [
+      # win over any nixpkgs equivalent (else Qt_6_PRIVATE_API-style crashes).
+      bundleDirs = [
+        "$out/${ncuDir}/${ncuHostPath}"
+        "$out/${nsysDir}/${nsysHostPath}"
+        "$out/${nsysDir}/target-linux-${if stdenv.hostPlatform.isAarch64 then "sbsa" else "x64"}"
+        # nsight embeds its own CPython; libpython312.so lives in these python/bin
+        # dirs and its lib-dynload/*.so need it on the search path.
+        "$out/${ncuDir}/${ncuHostPath}/python/bin"
+        "$out/${nsysDir}/${nsysHostPath}/python/bin"
+      ];
+      # Genuine system floor the bundle cannot carry. NO Qt here.
+      systemFloor = [
         "${stdenv.cc.cc.lib}/lib"
         "${dbus.lib}/lib"
         "${glib.out}/lib"
@@ -310,7 +325,28 @@ stdenv.mkDerivation {
         "${xorg.libXext}/lib"
         "${xorg.libXrender}/lib"
         "${xorg.libxcb}/lib"
+        "${xorg.xcbutil.out}/lib"
+        "${xorg.xcbutilcursor.out}/lib"
+        "${xorg.xcbutilwm.out}/lib"
+        "${xorg.xcbutilimage.out}/lib"
+        "${xorg.xcbutilkeysyms.out}/lib"
+        "${xorg.xcbutilrenderutil.out}/lib"
+        "${wayland}/lib"
+        "${nss}/lib"
+        "${nspr.out}/lib"
+        "${libdrm}/lib"
+        "${libgbm}/lib"
+        "${rdma-core}/lib"
+        "${xorg.libXi}/lib"
+        "${xorg.libxshmfence}/lib"
+        "${xorg.libxkbfile}/lib"
+        "${ncurses}/lib"
+        "${numactl}/lib"
+        "${gmp}/lib"
+        "${libxml2.out}/lib"
       ];
+      bundleLibs = lib.concatStringsSep ":" bundleDirs;
+      systemLibs = lib.concatStringsSep ":" systemFloor;
       dynamicLinker = "$(cat ${stdenv.cc}/nix-support/dynamic-linker)";
     in
     ''
@@ -319,6 +355,33 @@ stdenv.mkDerivation {
         "${bundleLibs}" \
         "${systemLibs}" \
         "${dynamicLinker}"
+
+      # Structural gate: fail the build if any ELF has an ABI-shadow
+      # (a bundle soname resolved to nixpkgs) or a dangling NEEDED.
+      ${modern.verify-closure {
+        out = "$out";
+        inherit bundleDirs systemFloor;
+        # Provided by the host driver at runtime, not in the image.
+        ignore = [
+          "libcuda.so.1"
+          "libnvidia-ml.so.1"
+          "libnvidia-*.so*"
+          "libQt6WlShellIntegration.so.6" # Wayland-only Qt plugin; absent from bundle, unused on X11/headless
+          # cuda-gdb ships a TUI per Python ABI (3.8–3.12); each wants its own
+          # libpython. We do not floor five Python runtimes — the matching-Python
+          # cuda-gdb resolves libpython from the user's environment at runtime.
+          "libpython3.8.so.1.0"
+          "libpython3.9.so.1.0"
+          "libpython3.10.so.1.0"
+          "libpython3.11.so.1.0"
+          "libpython3.12.so.1.0"
+          # cuda-uninstaller wants the old libxml2 SONAME (.so.2); nixpkgs ships
+          # .so.16. The tool only uninstalls a .run-based CUDA install, which
+          # never exists in a Nix deployment — it is inert, so its unsatisfiable
+          # dep is not a real runtime hazard.
+          "libxml2.so.2"
+        ];
+      }}
     '';
 
   passthru = {

@@ -101,6 +101,7 @@
       nvidia-sdk = pkgs.callPackage ../pkgs/nvidia-sdk.nix {
         inherit
           versions
+          modern
           cuda
           cudnn
           nccl
