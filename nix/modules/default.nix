@@ -137,7 +137,7 @@
 
       python = pkgs.callPackage ../pkgs/ngc-python.nix {
         containerSrc = ngcContainer;
-        inherit nvidia-sdk;
+        inherit nvidia-sdk modern;
       };
 
       # libtorch C++ library extracted from NGC python torch

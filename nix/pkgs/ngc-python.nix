@@ -5,30 +5,31 @@
 #
 # This avoids nixpkgs' torch/CUDA which would rebuild NCCL, magma, etc.
 
-{
-  lib,
-  stdenv,
-  python312,
-  autoPatchelfHook,
-  findutils,
-  containerSrc,
-  nvidia-sdk,
-  makeWrapper,
-  fetchPypi,
-  # System libs needed by NGC wheels
-  zlib,
-  openssl,
-  libffi,
-  ncurses,
-  readline,
-  bzip2,
-  xz,
-  libxml2,
-  curl,
-  numactl,
-  rdma-core,
-  ucx,
-  zeromq,
+{ lib
+, stdenv
+, python312
+, autoPatchelfHook
+, findutils
+, containerSrc
+, nvidia-sdk
+, modern
+, makeWrapper
+, fetchPypi
+, # System libs needed by NGC wheels
+  zlib
+, openssl
+, libffi
+, ncurses
+, readline
+, bzip2
+, xz
+, libxml2
+, curl
+, numactl
+, rdma-core
+, ucx
+, zeromq
+,
 }:
 
 let
@@ -272,6 +273,14 @@ let
       addAutoPatchelfSearchPath $out/lib
       addAutoPatchelfSearchPath ${python}/lib
     '';
+
+    # Structural gate: extracted rootfs is a self-contained vendor closure.
+    postFixup = modern.verify-closure {
+      out = "$out";
+      outIsBundle = true;
+      systemFloor = [ "${nvidia-sdk}/lib64" "${nvidia-sdk}/lib" "${python}/lib" ];
+      ignore = [ "libcuda.so.1" "libnvidia-ml.so.1" "libnvidia-*.so*" ];
+    };
 
     meta = {
       description = "Python packages extracted from NGC container";
