@@ -15,7 +15,6 @@
   nvidia-sdk,
   modern,
   makeWrapper,
-  fetchPypi,
   # System libs needed by NGC wheels
   zlib,
   openssl,

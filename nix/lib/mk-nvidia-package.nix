@@ -5,33 +5,6 @@
 
 { lib }:
 
-let
-  # Validate package definition
-  validatePackageDef =
-    def:
-    let
-      required = [
-        "pname"
-        "version"
-      ];
-
-      hasSource = lib.any (s: lib.hasAttr s def) [
-        "src"
-        "tarball"
-        "container"
-        "git"
-      ];
-    in
-
-    assert lib.assertMsg (lib.all (r: lib.hasAttr r def) required)
-      "mkNvidiaPackage: missing required fields: ${
-        lib.concatStringsSep ", " (lib.filter (r: !lib.hasAttr r def) required)
-      }";
-
-    assert lib.assertMsg hasSource "mkNvidiaPackage: must specify one of: src, tarball, container, git";
-    def;
-
-in
 {
   # Main package builder function
   mkNvidiaPackage =
@@ -52,7 +25,7 @@ in
       meta ? { },
       passthru ? { },
       ...
-    }@args:
+    }:
     let
 
       # Default metadata
