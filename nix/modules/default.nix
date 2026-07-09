@@ -194,6 +194,9 @@
           cudaStdenv
           ;
 
+        # Raw NGC container rootfs — useful for browsing available libs
+        ngc-rootfs = ngcContainer;
+
         inherit (monitoring) nvtop;
         inherit (monitoring) btop;
 
