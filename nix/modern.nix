@@ -39,18 +39,16 @@ let
   mk-runpath =
     deps:
     lib.concatStringsSep ":" (
-      lib.concatMap
-        (
-          dep:
-          let
-            d = dep.lib or dep.out or dep;
-          in
-          [
-            "${d}/lib"
-            "${d}/lib64"
-          ]
-        )
-        deps
+      lib.concatMap (
+        dep:
+        let
+          d = dep.lib or dep.out or dep;
+        in
+        [
+          "${d}/lib"
+          "${d}/lib64"
+        ]
+      ) deps
     );
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -92,12 +90,12 @@ let
   # a postFixup/postInstall that fails the build on MODE1 (ABI shadow) or
   # MODE2 (dangling NEEDED). See the script header for the algorithm.
   verify-closure =
-    { out
-    , bundleDirs ? [ ]
-    , systemFloor ? [ ]
-    , ignore ? [ ]
-    , outIsBundle ? false
-    ,
+    {
+      out,
+      bundleDirs ? [ ],
+      systemFloor ? [ ],
+      ignore ? [ ],
+      outIsBundle ? false,
     }:
     let
       script = ./scripts/verify-closure.sh;
@@ -125,14 +123,15 @@ in
     # ══════════════════════════════════════════════════════════════════════════
 
     extract =
-      { pname
-      , version
-      , src
-      , runtime-inputs ? [ ]
-      , install ? "cp -a . $out/"
-      , post-install ? ""
-      , meta ? { }
-      , ...
+      {
+        pname,
+        version,
+        src,
+        runtime-inputs ? [ ],
+        install ? "cp -a . $out/",
+        post-install ? "",
+        meta ? { },
+        ...
       }:
       let
         runpath = mk-runpath runtime-inputs;
@@ -171,8 +170,8 @@ in
         fixupPhase = ''
           runHook preFixup
           ${patch-elf {
-          inherit runpath;
-          out = "$out";
+            inherit runpath;
+            out = "$out";
           }}
           runHook postFixup
         '';
@@ -183,10 +182,10 @@ in
     # ══════════════════════════════════════════════════════════════════════════
 
     container-to-nix =
-      { name
-      , imageRef
-      , hash
-      ,
+      {
+        name,
+        imageRef,
+        hash,
       }:
       let
         # Map Nix system to OCI platform
@@ -214,4 +213,3 @@ in
       };
   };
 }
-

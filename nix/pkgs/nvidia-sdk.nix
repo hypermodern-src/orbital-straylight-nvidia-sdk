@@ -1,46 +1,58 @@
-{ lib
-, stdenv
-, symlinkJoin
-, makeWrapper
-, patchelf
-, bash
-, coreutils
-, cuda
-, cudnn
-, cutensor
-, cutlass
-, dbus
-, fontconfig
-, file
-, findutils
-, glib
-, gmp
-, gnugrep
-, libdrm
-, libglvnd
-, libbpf
-, libcap
-, libgbm
-, libpng
-, libxkbcommon
-, libxml2
-, mesa
-, ncurses
-, nspr
-, nss
-, numactl
-, modern
-, nccl
-, qt6
-, resholve
-, tensorrt
-, versions
-, rdma-core
-, wayland
-, zlib
-, zstd
-, xorg
-,
+{
+  lib,
+  stdenv,
+  symlinkJoin,
+  makeWrapper,
+  patchelf,
+  bash,
+  coreutils,
+  cuda,
+  cudnn,
+  cutensor,
+  cutlass,
+  dbus,
+  fontconfig,
+  file,
+  findutils,
+  glib,
+  gmp,
+  gnugrep,
+  libdrm,
+  libglvnd,
+  libbpf,
+  libcap,
+  libgbm,
+  libpng,
+  libxkbcommon,
+  libxml2,
+  libx11,
+  libxext,
+  libxrender,
+  libxcb,
+  libxcb-util,
+  libxcb-cursor,
+  libxcb-wm,
+  libxcb-image,
+  libxcb-keysyms,
+  libxcb-render-util,
+  libxi,
+  libxshmfence,
+  libxkbfile,
+  mesa,
+  ncurses,
+  nspr,
+  nss,
+  numactl,
+  modern,
+  nccl,
+  qt6,
+  resholve,
+  tensorrt,
+  versions,
+  rdma-core,
+  wayland,
+  zlib,
+  zstd,
 }:
 
 let
@@ -125,10 +137,10 @@ stdenv.mkDerivation {
     qt6.qtwayland
     mesa
     libglvnd
-    xorg.libX11
-    xorg.libXext
-    xorg.libXrender
-    xorg.libxcb
+    libx11
+    libxext
+    libxrender
+    libxcb
     stdenv.cc.cc.lib
   ];
 
@@ -324,25 +336,25 @@ stdenv.mkDerivation {
         "${zstd.out}/lib"
         "${mesa}/lib"
         "${libglvnd}/lib"
-        "${xorg.libX11}/lib"
-        "${xorg.libXext}/lib"
-        "${xorg.libXrender}/lib"
-        "${xorg.libxcb}/lib"
-        "${xorg.xcbutil.out}/lib"
-        "${xorg.xcbutilcursor.out}/lib"
-        "${xorg.xcbutilwm.out}/lib"
-        "${xorg.xcbutilimage.out}/lib"
-        "${xorg.xcbutilkeysyms.out}/lib"
-        "${xorg.xcbutilrenderutil.out}/lib"
+        "${libx11}/lib"
+        "${libxext}/lib"
+        "${libxrender}/lib"
+        "${libxcb}/lib"
+        "${libxcb-util.out}/lib"
+        "${libxcb-cursor.out}/lib"
+        "${libxcb-wm.out}/lib"
+        "${libxcb-image.out}/lib"
+        "${libxcb-keysyms.out}/lib"
+        "${libxcb-render-util.out}/lib"
         "${wayland}/lib"
         "${nss}/lib"
         "${nspr.out}/lib"
         "${libdrm}/lib"
         "${libgbm}/lib"
         "${rdma-core}/lib"
-        "${xorg.libXi}/lib"
-        "${xorg.libxshmfence}/lib"
-        "${xorg.libxkbfile}/lib"
+        "${libxi}/lib"
+        "${libxshmfence}/lib"
+        "${libxkbfile}/lib"
         "${ncurses}/lib"
         "${numactl}/lib"
         "${gmp}/lib"

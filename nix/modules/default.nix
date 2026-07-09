@@ -441,6 +441,25 @@
               "
               echo "Python imports: ok" > $out
             '';
+
+        # ── Ignore-list sync ──────────────────────────────────────────
+        # Ensures autoPatchelfIgnoreMissingDeps and verify-closure ignore
+        # lists are in sync across all packages. Without this, a library
+        # ignored by autoPatchelf but not by verify-closure will cause a
+        # MODE2 dangling failure at build time (discovered too late).
+        ignore-sync =
+          pkgs.runCommand "check-ignore-sync"
+            {
+              nativeBuildInputs = [
+                pkgs.bash
+                pkgs.gnused
+                pkgs.gnugrep
+              ];
+            }
+            ''
+              ${pkgs.bash}/bin/sh ${../scripts/check-ignore-sync.sh} "${./.}"
+              echo "ok: ignore lists in sync" > $out
+            '';
       };
 
       apps = {

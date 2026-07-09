@@ -16,7 +16,11 @@
   rdma-core,
   ucx,
   wayland,
-  xorg,
+  libx11,
+  libxcursor,
+  libxdamage,
+  libxrandr,
+  libxtst,
 }:
 
 let
@@ -65,11 +69,11 @@ stdenv.mkDerivation {
     rdma-core
     ucx
     wayland
-    xorg.libX11
-    xorg.libXcursor
-    xorg.libXdamage
-    xorg.libXrandr
-    xorg.libXtst
+    libx11
+    libxcursor
+    libxdamage
+    libxrandr
+    libxtst
     stdenv.cc.cc.lib
   ];
 

@@ -5,32 +5,32 @@
 #
 # This avoids nixpkgs' torch/CUDA which would rebuild NCCL, magma, etc.
 
-{ lib
-, stdenv
-, python312
-, autoPatchelfHook
-, findutils
-, containerSrc
-, nvidia-sdk
-, modern
-, makeWrapper
-, fetchPypi
-, # System libs needed by NGC wheels
-  zlib
-, openssl
-, libffi
-, ncurses
-, readline
-, bzip2
-, xz
-, libxml2
-, curl
-, numactl
-, rdma-core
-, ucx
-, libpng
-, zeromq
-,
+{
+  lib,
+  stdenv,
+  python312,
+  autoPatchelfHook,
+  findutils,
+  containerSrc,
+  nvidia-sdk,
+  modern,
+  makeWrapper,
+  fetchPypi,
+  # System libs needed by NGC wheels
+  zlib,
+  openssl,
+  libffi,
+  ncurses,
+  readline,
+  bzip2,
+  xz,
+  libxml2,
+  curl,
+  numactl,
+  rdma-core,
+  ucx,
+  libpng,
+  zeromq,
 }:
 
 let
@@ -299,6 +299,21 @@ let
         # Bundled LLVM 18 (clang/LTO/gold plugin); optional JIT path, matches the
         # autoPatchelf ignore. Only the bundled clang toolchain needs it.
         "libLLVM.so*"
+        # Intel oneAPI/SYCL libs — not needed for NVIDIA GPUs, matches autoPatchelf ignore
+        "libsycl.so*"
+        "libze_loader.so*"
+        "libimf.so*"
+        "libsvml.so*"
+        "libirng.so*"
+        "libintlc.so*"
+        # OpenMP target offload runtime — Intel-specific, not needed for CUDA
+        "libomptarget*.so*"
+        # Old libffi version (we provide libffi.so.8)
+        "libffi.so.6*"
+        # Hardware locality (TBB binding, optional)
+        "libhwloc.so*"
+        # TBB binding (optional threading optimization)
+        "libtbbbind*.so*"
       ];
     };
 

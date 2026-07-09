@@ -11,7 +11,13 @@
   qt6,
   zlib,
   libGL,
-  xorg,
+  libx11,
+  libxcursor,
+  libxrandr,
+  libxi,
+  libxinerama,
+  libxext,
+  libxxf86vm,
   fontconfig,
   freetype,
   libxcrypt-legacy,
@@ -43,13 +49,13 @@ stdenv.mkDerivation {
     stdenv.cc.cc.lib
     zlib
     libGL
-    xorg.libX11
-    xorg.libXcursor
-    xorg.libXrandr
-    xorg.libXi
-    xorg.libXinerama
-    xorg.libXext
-    xorg.libXxf86vm
+    libx11
+    libxcursor
+    libxrandr
+    libxi
+    libxinerama
+    libxext
+    libxxf86vm
     fontconfig
     freetype
     qt6.qtbase

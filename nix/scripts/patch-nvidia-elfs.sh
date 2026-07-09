@@ -26,23 +26,23 @@ dynamic_linker="$4"
 echo "Patching ELF files (bundle libs take precedence over the system floor)..."
 
 find "$output_dir" -type f \( -executable -o -name "*.so*" \) 2>/dev/null | while read -r f; do
-	# Skip symlinks
-	[ -L "$f" ] && continue
+  # Skip symlinks
+  [ -L "$f" ] && continue
 
-	# Skip non-ELF files
-	file "$f" | grep -q ELF || continue
+  # Skip non-ELF files
+  file "$f" | grep -q ELF || continue
 
-	# Set interpreter for executables
-	if file "$f" | grep -q "executable"; then
-		patchelf --set-interpreter "$dynamic_linker" "$f" 2>/dev/null || true
-	fi
+  # Set interpreter for executables
+  if file "$f" | grep -q "executable"; then
+    patchelf --set-interpreter "$dynamic_linker" "$f" 2>/dev/null || true
+  fi
 
-	# Update rpath: bundle first, then the nixpkgs system floor, then whatever the
-	# object already had. Bundle-before-system is what prevents the Qt (and other)
-	# version-skew crashes.
-	existing=$(patchelf --print-rpath "$f" 2>/dev/null || echo "")
-	new_rpath="$output_dir/lib:$output_dir/lib64:$bundle_libs:$system_libs${existing:+:$existing}"
-	patchelf --force-rpath --set-rpath "$new_rpath" "$f" 2>/dev/null || true
+  # Update rpath: bundle first, then the nixpkgs system floor, then whatever the
+  # object already had. Bundle-before-system is what prevents the Qt (and other)
+  # version-skew crashes.
+  existing=$(patchelf --print-rpath "$f" 2>/dev/null || echo "")
+  new_rpath="$output_dir/lib:$output_dir/lib64:$bundle_libs:$system_libs${existing:+:$existing}"
+  patchelf --force-rpath --set-rpath "$new_rpath" "$f" 2>/dev/null || true
 done
 
 echo "ELF patching complete."

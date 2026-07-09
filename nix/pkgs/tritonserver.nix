@@ -3,82 +3,83 @@
 # Extracted from the canonical NGC container.
 # Includes all backends: TensorRT, TensorRT-LLM, Python, ONNX, etc.
 
-{ lib
-, stdenv
-, fetchurl
-, autoPatchelfHook
-, modern
-, file
-, findutils
-, gnugrep
-, patchelf
-, makeWrapper
-, python312
-, abseil-cpp
-, acl
-, audit
-, boost
-, bzip2
-, curl
-, cyrus_sasl
-, db
-, dbus
-, e2fsprogs
-, expat
-, gdbm
-, glib
-, gnutls
-, gperftools
-, grpc
-, icu
-, keyutils
-, libarchive
-, libbsd
-, libcap
-, libcap_ng
-, libevent
-, libffi
-, libgcrypt
-, libgpg-error
-, libkrb5
-, libmd
-, libselinux
-, libsemanage
-, libsepol
-, libssh
-, libuuid
-, libxcrypt
-, libxml2
-, lz4
-, ncurses
-, nettle
-, numactl
-, rdma-core
-, # libibverbs/libmlx5/librdmacm — RDMA over the ConnectX/QSFP fabric
-  ucx
-, # libuct/libucp/libucs — UCX transports used by NCCL/TRT-LLM multi-node
-  zeromq
-, # libzmq — used by the TRT-LLM UCX wrapper
-  openldap
-, # openmpi - use container's MPI to avoid nixpkgs CUDA dep chain
-  openssl
-, pam
-, pcre
-, pcre2
-, protobuf
-, rapidjson
-, re2
-, readline
-, rtmpdump
-, systemd
-, containerSrc
-, tzdata
-, util-linux
-, versions
-, xz
-, zlib
-, nvidia-sdk
-, # Default to TRT-LLM (the full package)
+{
+  lib,
+  stdenv,
+  fetchurl,
+  autoPatchelfHook,
+  modern,
+  file,
+  findutils,
+  gnugrep,
+  patchelf,
+  makeWrapper,
+  python312,
+  abseil-cpp,
+  acl,
+  audit,
+  boost,
+  bzip2,
+  curl,
+  cyrus_sasl,
+  db,
+  dbus,
+  e2fsprogs,
+  expat,
+  gdbm,
+  glib,
+  gnutls,
+  gperftools,
+  grpc,
+  icu,
+  keyutils,
+  libarchive,
+  libbsd,
+  libcap,
+  libcap_ng,
+  libevent,
+  libffi,
+  libgcrypt,
+  libgpg-error,
+  libkrb5,
+  libmd,
+  libselinux,
+  libsemanage,
+  libsepol,
+  libssh,
+  libuuid,
+  libxcrypt,
+  libxml2,
+  lz4,
+  ncurses,
+  nettle,
+  numactl,
+  rdma-core,
+  # libibverbs/libmlx5/librdmacm — RDMA over the ConnectX/QSFP fabric
+  ucx,
+  # libuct/libucp/libucs — UCX transports used by NCCL/TRT-LLM multi-node
+  zeromq,
+  # libzmq — used by the TRT-LLM UCX wrapper
+  openldap,
+  # openmpi - use container's MPI to avoid nixpkgs CUDA dep chain
+  openssl,
+  pam,
+  pcre,
+  pcre2,
+  protobuf,
+  rapidjson,
+  re2,
+  readline,
+  rtmpdump,
+  systemd,
+  containerSrc,
+  tzdata,
+  util-linux,
+  versions,
+  xz,
+  zlib,
+  nvidia-sdk,
+  # Default to TRT-LLM (the full package)
   ...
 }:
 
@@ -412,9 +413,37 @@ stdenv.mkDerivation {
       ];
       # Flatten runtime-inputs to individual lib dirs (verify-closure wants a
       # list of dirs, not a colon-joined string).
-      systemFloor = lib.concatMap (d: let p = d.lib or d.out or d; in [ "${p}/lib" "${p}/lib64" ]) runtime-inputs;
+      systemFloor = lib.concatMap (
+        d:
+        let
+          p = d.lib or d.out or d;
+        in
+        [
+          "${p}/lib"
+          "${p}/lib64"
+        ]
+      ) runtime-inputs;
       # Provided by the host at runtime (driver / RDMA fabric hardware).
-      ignore = [ "libcuda.so.1" "libnvidia-ml.so.1" "libnvidia-*.so*" ];
+      # NOTE: must stay in sync with autoPatchelfIgnoreMissingDeps above.
+      ignore = [
+        "libcuda.so.1"
+        "libnvidia-ml.so.1"
+        "libnvidia-*.so*"
+        "libLLVM.so.18.1"
+        "libgc.so.1"
+        "libobjc_gc.so.4.0.0"
+        "libonig.so.5"
+        "libmpfr.so.6"
+        "libxxhash.so.0"
+        "libjq.so.1.0.4"
+        "libcaffe2_nvrtc.so"
+        "libsasl2.so.2"
+        "libapt-pkg.so.6.0"
+        "libapt-private.so.0.0"
+        # libmvec is glibc's optional math vectorization lib — optional, rarely
+        # exercised, and not critical for inference workloads.
+        "libmvec.so.1"
+      ];
     }}
   '';
 
