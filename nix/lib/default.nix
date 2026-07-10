@@ -7,7 +7,12 @@
 
 let
   # Import sub-modules
-  mkNvidiaPackage = import ./mk-nvidia-package.nix { inherit lib; };
+  mkNvidiaPackage = import ./mk-nvidia-package.nix {
+    inherit lib;
+    # fetchurl and fetchFromGitHub are injected by callers via callPackage
+    fetchurl = throw "nvidiaLib: fetchurl must be provided by caller";
+    fetchFromGitHub = throw "nvidiaLib: fetchFromGitHub must be provided by caller";
+  };
   schemas = import ./schemas.nix { inherit lib; };
   validators = import ./validators.nix { inherit lib schemas; };
   licenses = import ./licenses.nix { inherit lib; };
@@ -21,8 +26,8 @@ in
     licenses
     ;
 
-  # Convenience re-exports
-  inherit (mkNvidiaPackage) mkNvidiaPackage;
+  # Convenience re-exports from mkNvidiaPackage module
+  inherit (mkNvidiaPackage) buildPackage;
   inherit (schemas) versionSchemas;
   inherit (validators) validateVersion assertCompatible;
   inherit (licenses)

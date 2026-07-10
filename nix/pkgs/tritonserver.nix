@@ -1,13 +1,19 @@
-# tritonserver.nix — NGC Triton Inference Server with TensorRT-LLM
+# tritonserver.nix — NGC Triton Inference Server with TensorRT-LLM + vLLM
 #
 # Extracts all binaries and system libraries from the canonical NGC
-# container into a single self-contained $out/lib, then patches every
+# containers into a single self-contained $out/lib, then patches every
 # ELF to resolve against that bundle. This eliminates the "which nixpkgs
 # lib vs which container lib?" class of ABI-skew bugs entirely.
+#
+# Merges TRT-LLM container (primary) with vLLM container to provide:
+#   - tensorrtllm backend
+#   - vllm backend
+#   - python backend
 
 {
   lib,
   stdenv,
+  addDriverRunpath,
   autoPatchelfHook,
   modern,
   file,
@@ -17,6 +23,7 @@
   makeWrapper,
   python312,
   containerSrc,
+  vllmContainerSrc,
   versions,
   nvidia-sdk,
   zeromq,
@@ -27,6 +34,7 @@
 let
   python = python312;
   version = versions.triton-trtllm-container.version;
+  ignoreLists = import ../lib/ignore-lists.nix;
 
 in
 stdenv.mkDerivation {
@@ -35,6 +43,7 @@ stdenv.mkDerivation {
   src = containerSrc;
 
   nativeBuildInputs = [
+    addDriverRunpath
     autoPatchelfHook
     file
     findutils
@@ -53,41 +62,11 @@ stdenv.mkDerivation {
 
   # Only driver libs can never be bundled — everything else is in the
   # container and gets dumped to $out/lib.
-  autoPatchelfIgnoreMissingDeps = [
-    "libcuda.so*"
-    "libnvidia-ml.so*"
-    "libnvidia-*.so*"
-    # Intel oneAPI/SYCL — not in NGC container, not needed for NVIDIA GPUs
-    "libsycl.so*"
-    "libze_loader.so*"
-    "libimf.so*"
-    "libsvml.so*"
-    "libirng.so*"
-    "libintlc.so*"
-    "libomptarget*.so*"
-    # SONAME mismatch: container has libffi.so.8, libhwloc.so.15
-    "libffi.so.6*"
-    "libhwloc.so.5*"
-    "libhwloc.so*"
-    # libpng16 not in container (nixpkgs provides it)
-    "libpng16.so*"
-    # TBB binding depends on libhwloc
-    "libtbbbind*.so*"
-    # Optional UCX transports / RDMA
-    "libxpmem.so*"
-    "libibmad.so*"
-    # NVIDIA proprietary (nsight telemetry, not in container)
-    "libAppLib.so*"
-    "libAppLibInterfaces.so*"
-    # Qt6 (from nsight, not in container)
-    "libQt6*.so*"
-    # CUDA runtime 12 (nsight ships CUDA 12 libs, nvidia-sdk has 13)
-    "libcudart.so.12*"
-    # Python 3.12 shared lib (nixpkgs provides it, but soname may differ)
-    "libpython312.so*"
-    # glibc optional math vectorization
-    "libmvec.so.1"
-  ];
+  autoPatchelfIgnoreMissingDeps = ignoreLists.ngcContainerIgnore;
+
+  # Disable automatic autoPatchelf hook - we call it manually in postFixup
+  # so we can run addDriverRunpath AFTER it
+  dontAutoPatchelf = true;
 
   dontUnpack = true;
   dontConfigure = true;
@@ -120,6 +99,30 @@ stdenv.mkDerivation {
       fi
       chmod -R u+w $out/tensorrt_llm
     fi
+
+    # ── vLLM backend from vLLM container ────────────────────────────
+    if [ -d ${vllmContainerSrc}/opt/tritonserver/backends/vllm ]; then
+      echo "Merging vLLM backend from vLLM container..."
+      cp -a ${vllmContainerSrc}/opt/tritonserver/backends/vllm $out/backends/
+      chmod -R u+w $out/backends/vllm
+    fi
+
+    # ── vLLM libs from vLLM container (no-clobber to preserve TRT-LLM versions) ──
+    echo "Merging vLLM container libraries..."
+    find ${vllmContainerSrc} -name "*.so*" \( -type f -o -type l \) \
+      -not -name "libc.so*" \
+      -not -name "libm.so*" \
+      -not -name "libpthread.so*" \
+      -not -name "libdl.so*" \
+      -not -name "librt.so*" \
+      -not -name "libutil.so*" \
+      -not -name "libresolv.so*" \
+      -not -name "libnsl.so*" \
+      -not -name "ld-linux*.so*" \
+      -not -name "libstdc++.so*" \
+      -not -name "libgcc_s.so*" \
+      -not -name "libpython*.so*" \
+      -exec cp -an {} $out/lib/ \; 2>/dev/null || true
 
     # ── Dump every container .so into $out/lib (on top of tritonserver's) ──
     # Excludes: glibc family (can't swap), dynamic linker, libstdc++/libgcc
@@ -182,7 +185,15 @@ stdenv.mkDerivation {
   '';
 
   postFixup = ''
+    # Run autoPatchelf manually (we disabled the hook to control ordering)
     autoPatchelf "$out"
+
+    # Add /run/opengl-driver/lib to RUNPATH for driver libs (libcuda.so, libnvidia-ml.so)
+    # Must run AFTER autoPatchelf to avoid being overwritten
+    echo "Adding driver runpath to ELF files..."
+    while IFS= read -r -d "" f; do
+      addDriverRunpath "$f" 2>/dev/null || true
+    done < <(find "$out" -type f \( -name '*.so*' -o -executable \) -print0)
 
     # Structural gate: self-contained bundle, only driver libs are host-provided.
     ${modern.verify-closure {
@@ -194,41 +205,7 @@ stdenv.mkDerivation {
         "${zeromq}/lib"
         "${stdenv.cc.cc.lib}/lib"
       ];
-      ignore = [
-        "libcuda.so.1"
-        "libnvidia-ml.so.1"
-        "libnvidia-*.so*"
-        # Intel oneAPI/SYCL — not in NGC container, not needed for NVIDIA GPUs
-        "libsycl.so*"
-        "libze_loader.so*"
-        "libimf.so*"
-        "libsvml.so*"
-        "libirng.so*"
-        "libintlc.so*"
-        "libomptarget*.so*"
-        # SONAME mismatch: container has libffi.so.8, libhwloc.so.15
-        "libffi.so.6*"
-        "libhwloc.so.5*"
-        "libhwloc.so*"
-        # libpng16 not in container (nixpkgs provides it)
-        "libpng16.so*"
-        # TBB binding depends on libhwloc
-        "libtbbbind*.so*"
-        # Optional UCX transports / RDMA
-        "libxpmem.so*"
-        "libibmad.so*"
-        # NVIDIA proprietary (nsight telemetry, not in container)
-        "libAppLib.so*"
-        "libAppLibInterfaces.so*"
-        # Qt6 (from nsight, not in container)
-        "libQt6*.so*"
-        # CUDA runtime 12 (nsight ships CUDA 12 libs, nvidia-sdk has 13)
-        "libcudart.so.12*"
-        # Python 3.12 shared lib (nixpkgs provides it, but soname may differ)
-        "libpython312.so*"
-        # glibc optional math vectorization
-        "libmvec.so.1"
-      ];
+      ignore = ignoreLists.ngcContainerIgnore;
     }}
 
     # Wrap binaries
@@ -236,8 +213,8 @@ stdenv.mkDerivation {
       [ -f "$exe" ] && [ -x "$exe" ] || continue
       wrapProgram "$exe" \
         --set TRITON_SERVER_ROOT "$out" \
-        --suffix LD_LIBRARY_PATH : "$out/lib:${nvidia-sdk}/lib64:${nvidia-sdk}/lib:/run/opengl-driver/lib" \
-        --prefix PYTHONPATH : "$out/python"
+        --prefix PYTHONPATH : "$out/python" \
+        --add-flags "--backend-directory=$out/backends"
     done
   '';
 
@@ -246,7 +223,7 @@ stdenv.mkDerivation {
   };
 
   meta = {
-    description = "NVIDIA Triton Inference Server with TensorRT-LLM ${version}";
+    description = "NVIDIA Triton Inference Server with TensorRT-LLM + vLLM ${version}";
     homepage = "https://developer.nvidia.com/nvidia-triton-inference-server";
     license = lib.licenses.unfree;
     platforms = [

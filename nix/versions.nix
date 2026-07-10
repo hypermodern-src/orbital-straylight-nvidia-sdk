@@ -172,6 +172,22 @@
     };
   };
 
+  # vLLM container — merged with TRT-LLM to provide both backends
+  triton-vllm-container = {
+    version = "26.06";
+
+    x86_64-linux = {
+      ref = "nvcr.io/nvidia/tritonserver:26.06-vllm-python-py3";
+      hash = "sha256-Wa6XJyh9uP/NB4R+CmZ3jF0Pvu4SmWbkxtg8YGMUhU4=";
+    };
+
+    aarch64-linux = {
+      ref = "nvcr.io/nvidia/tritonserver:26.06-vllm-python-py3";
+      # Placeholder - compute on aarch64-linux host
+      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    };
+  };
+
   # ════════════════════════════════════════════════════════════════════════════
   # Nsight Profiling Tools (bundled with CUDA)
   # ════════════════════════════════════════════════════════════════════════════
@@ -224,18 +240,18 @@
 
     x86_64-linux = {
       url = "https://us.download.nvidia.com/XFree86/Linux-x86_64/610.43.02/NVIDIA-Linux-x86_64-610.43.02.run";
-      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # TODO: fetch
+      hash = throw "Driver hash for x86_64-linux not yet populated. Run: nix-prefetch-url --type sha256 <url> | xargs nix hash convert --hash-algo sha256";
     };
 
     aarch64-linux = {
       url = "https://us.download.nvidia.com/XFree86/Linux-aarch64/610.43.02/NVIDIA-Linux-aarch64-610.43.02.run";
-      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # TODO: fetch
+      hash = throw "Driver hash for aarch64-linux not yet populated. Run: nix-prefetch-url --type sha256 <url> | xargs nix hash convert --hash-algo sha256";
     };
 
     # Open kernel module hashes (Turing+)
     open = {
-      x86_64-linux.hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-      aarch64-linux.hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      x86_64-linux.hash = throw "Open driver hash for x86_64-linux not yet populated.";
+      aarch64-linux.hash = throw "Open driver hash for aarch64-linux not yet populated.";
     };
   };
 }

@@ -1,4 +1,4 @@
-{ inputs, pkgs, ... }: {
+{ inputs, ... }: {
 
   imports = [ ./fmt.nix ];
 
@@ -121,28 +121,49 @@
         hash = versions.triton-trtllm-container.${system}.hash;
       };
 
+      # vLLM container — provides vllm backend + vllm Python package
+      vllmContainer = modern.container-to-nix {
+        name = "vllm-${versions.ngc.version}-rootfs";
+        imageRef = versions.triton-vllm-container.${system}.ref;
+        hash = versions.triton-vllm-container.${system}.hash;
+      };
+
       tritonserver = pkgs.callPackage ../pkgs/tritonserver.nix {
         inherit versions modern nvidia-sdk;
         containerSrc = ngcContainer;
+        vllmContainerSrc = vllmContainer;
         backend = "trtllm";
       };
 
       # ════════════════════════════════════════════════════════════════════
-      # PYTHON 3.12 — Complete NGC environment
+      # PYTHON 3.12 — NGC environments (two variants due to torch incompatibility)
       # ════════════════════════════════════════════════════════════════════
       #
-      # All Python packages (torch, triton, tensorrt_llm, numpy, etc.)
-      # extracted from NGC container. This is the complete, self-consistent
-      # set - no nixpkgs CUDA/torch deps.
+      # TRT-LLM and vLLM containers have incompatible torch versions:
+      #   - TRT-LLM: torch 2.10.0a0 (nv25.12)
+      #   - vLLM: torch 2.13.0a0 (nv26.6)
+      #
+      # We expose both as separate packages. Default 'python' is TRT-LLM
+      # since it's the primary use case for this SDK.
 
-      python = pkgs.callPackage ../pkgs/ngc-python.nix {
+      python-trtllm = pkgs.callPackage ../pkgs/ngc-python.nix {
         containerSrc = ngcContainer;
         inherit nvidia-sdk modern;
+        variant = "trtllm";
       };
+
+      python-vllm = pkgs.callPackage ../pkgs/ngc-python.nix {
+        containerSrc = vllmContainer;
+        inherit nvidia-sdk modern;
+        variant = "vllm";
+      };
+
+      # Default python is TRT-LLM (primary use case)
+      python = python-trtllm;
 
       # libtorch C++ library extracted from NGC python torch
       # Enables hasktorch on aarch64-linux with GPU support
-      libtorch-bin = pkgs.callPackage ../pkgs/libtorch.nix { inherit python; };
+      libtorch-bin = pkgs.callPackage ../pkgs/libtorch.nix { python = python-trtllm; };
 
       # ════════════════════════════════════════════════════════════════════
       # VALIDATION & SAMPLES
@@ -186,6 +207,8 @@
           cuda-merged
           tritonserver
           python
+          python-trtllm
+          python-vllm
           libtorch-bin
           cuda-samples
           nccl-tests

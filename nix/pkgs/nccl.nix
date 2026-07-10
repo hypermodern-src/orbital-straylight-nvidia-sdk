@@ -6,14 +6,18 @@
   versions,
   cuda,
 }:
+let
+  system = stdenv.hostPlatform.system;
+  srcInfo = versions.nccl.${system} or (throw "nccl: unsupported system ${system}");
+in
 stdenv.mkDerivation {
   pname = "nccl";
   version = versions.nccl.version;
 
   src = fetchurl {
     # Live NVIDIA upstream redistributable (CUDA 13 .txz).
-    url = versions.nccl.${stdenv.hostPlatform.system}.urls.upstream;
-    hash = versions.nccl.${stdenv.hostPlatform.system}.hash;
+    url = srcInfo.urls.upstream;
+    hash = srcInfo.hash;
   };
 
   nativeBuildInputs = [ autoPatchelfHook ];

@@ -47,11 +47,11 @@ let
         type = "attrs";
         required = true;
         fields = {
-          mirror = {
+          upstream = {
             type = "string";
             required = true;
           };
-          upstream = {
+          mirror = {
             type = "string";
             required = false;
           };
@@ -177,7 +177,7 @@ in
           in
           if fieldDef.required && value == null then
             [ "${field}: required field missing" ]
-          else if value != null && fieldDef ? pattern && !(builtins.match fieldDef.pattern value) then
+          else if value != null && fieldDef ? pattern && (builtins.match fieldDef.pattern value) == null then
             [ "${field}: value '${value}' doesn't match pattern '${fieldDef.pattern}'" ]
           else
             [ ]

@@ -33,7 +33,7 @@ stdenv.mkDerivation {
 
   postPatch = ''
     sed -i 's/enable_language(CUDA)/# enable_language(CUDA)/' CUDA.cmake
-    sed -i '/find_package(CUDAToolkit REQUIRED)/a set(CMAKE_CUDA_COMPILER_ID "NVIDIA")\nset(CUDA_VERSION "13.0")' CUDA.cmake
+    sed -i '/find_package(CUDAToolkit REQUIRED)/a set(CMAKE_CUDA_COMPILER_ID "NVIDIA")\nset(CUDA_VERSION "${versions.cuda.version}")' CUDA.cmake
 
     # Patch arch/config.h to enable SM100+ features with Clang and for SM120 (Blackwell supports Hopper instructions)
     sed -i 's/#if !CUTLASS_CLANG_CUDA && (/#if (/' include/cutlass/arch/config.h

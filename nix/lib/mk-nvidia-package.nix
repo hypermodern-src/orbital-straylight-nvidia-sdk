@@ -3,7 +3,7 @@
 # Provides a consistent interface for building all NVIDIA SDK packages
 # with proper dependency management, ELF patching, and metadata.
 
-{ lib }:
+{ lib, fetchurl, fetchFromGitHub }:
 
 {
   # Main package builder function
@@ -79,7 +79,7 @@
 
       src =
         if pkgDef ? tarball && pkgDef.tarball != null then
-          stdenv.fetchurl {
+          fetchurl {
             url = pkgDef.tarball.urls.mirror or pkgDef.tarball.urls.upstream;
             hash = pkgDef.tarball.hash;
           }
@@ -92,7 +92,7 @@
           }
 
         else if pkgDef ? git && pkgDef.git != null then
-          stdenv.fetchFromGitHub {
+          fetchFromGitHub {
             inherit (pkgDef.git)
               owner
               repo

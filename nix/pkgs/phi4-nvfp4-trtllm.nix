@@ -46,11 +46,13 @@ let
           echo "  https://huggingface.co/$MODEL_NAME"
           echo ""
           
-          # Install huggingface-hub if needed
-          if ! ${python}/bin/python -c "import huggingface_hub" 2>/dev/null; then
-            echo "Installing huggingface-hub..."
-            ${python}/bin/pip install --user huggingface-hub
-          fi
+      # huggingface-hub should be provided by the python environment.
+      # If missing, fail explicitly rather than runtime pip install (supply chain risk).
+      if ! ${python}/bin/python -c "import huggingface_hub" 2>/dev/null; then
+        echo "ERROR: huggingface-hub not found in python environment." >&2
+        echo "Please ensure huggingface-hub is included in the Nix python derivation." >&2
+        exit 1
+      fi
           
           # Download model
           ${python}/bin/python -c "
@@ -102,12 +104,14 @@ let
         
         print("Initializing LLM...")
         print(f"Model: $MODEL_NAME")
-        print(f"Trust remote code: True")
         print()
         
+        # NOTE: trust_remote_code is intentionally disabled for security.
+        # NVIDIA's official Phi-4 NVFP4 model does not require remote code execution.
+        # If this fails, verify the model supports standard HF loading.
         llm = LLM(
             model="$MODEL_NAME",
-            trust_remote_code=True,
+            trust_remote_code=False,
         )
         
         print("Generating responses...")
@@ -126,11 +130,10 @@ let
     if __name__ == '__main__':
         try:
             main()
-        except Exception as e:
-            print(f"Error during inference: {e}", file=sys.stderr)
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
+    except Exception as e:
+        # Avoid leaking full paths/stack traces in production
+        print(f"Error during inference: {type(e).__name__}: {e}", file=sys.stderr)
+        sys.exit(1)
     PYTHON_EOF
   '';
 

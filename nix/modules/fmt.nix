@@ -100,7 +100,7 @@
         programs.shfmt.indent_size = indentWidth;
         settings.formatter.shfmt.excludes = [ ];
 
-        # `statix`: static anlaysis for `nixlang`
+        # `statix`: static analysis for `nixlang`
         programs.statix.enable = true;
         settings.formatter.statix.excludes = [ ];
 

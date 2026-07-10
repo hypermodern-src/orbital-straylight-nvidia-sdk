@@ -9,9 +9,7 @@
         _module.args.pkgs = import inputs.nixpkgs {
           inherit system;
 
-          overlays = [
-            # inputs.self.overlays.default
-          ];
+          overlays = [ ];
 
           config = {
             cudaSupport = true; # the monopoly

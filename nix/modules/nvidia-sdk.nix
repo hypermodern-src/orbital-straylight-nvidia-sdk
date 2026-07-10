@@ -141,6 +141,14 @@ in
     # Persistence Daemon
     # ──────────────────────────────────────────────────────────────────────────
 
+    users.users.nvidia-persistenced = lib.mkIf cfg.persistenced {
+      isSystemUser = true;
+      group = "nvidia-persistenced";
+      description = "NVIDIA Persistence Daemon user";
+    };
+
+    users.groups.nvidia-persistenced = lib.mkIf cfg.persistenced { };
+
     systemd.services.nvidia-persistenced = lib.mkIf cfg.persistenced {
       description = "NVIDIA Persistence Daemon";
       wantedBy = [ "multi-user.target" ];
@@ -149,9 +157,10 @@ in
         Type = "forking";
         Restart = "always";
         PIDFile = "/run/nvidia-persistenced/nvidia-persistenced.pid";
-        ExecStart = "${cfg.driver.package.persistenced}/bin/nvidia-persistenced --user root --persistence-mode --verbose";
+        ExecStart = "${cfg.driver.package.persistenced}/bin/nvidia-persistenced --user nvidia-persistenced --persistence-mode --verbose";
         ExecStopPost = "${pkgs.coreutils}/bin/rm -rf /run/nvidia-persistenced";
         RuntimeDirectory = "nvidia-persistenced";
+        RuntimeDirectoryMode = "0755";
       };
     };
 

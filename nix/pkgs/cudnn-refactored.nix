@@ -5,8 +5,8 @@
 {
   lib,
   stdenv,
+  fetchurl,
   zlib,
-  nvidiaLib,
   versions,
   cuda,
 }:
@@ -14,6 +14,11 @@
 let
   system = stdenv.hostPlatform.system;
   srcInfo = versions.cudnn.${system} or (throw "cudnn: unsupported system ${system}");
+
+  nvidiaLib = import ../lib/mk-nvidia-package.nix {
+    inherit lib fetchurl;
+    fetchFromGitHub = throw "cudnn-refactored: fetchFromGitHub not needed";
+  };
 
   # Build using unified package builder
   pkgDef = nvidiaLib.mkNvidiaPackage {
@@ -50,8 +55,11 @@ let
   };
 
 in
+# NOTE: This module is not currently used (the regular cudnn.nix is).
+# To use it, the caller must provide `modern` for container builds.
+# For tarball builds, modern can be null.
 nvidiaLib.buildPackage {
   inherit stdenv;
-  modern = null; # Will be provided by caller
+  modern = null;
   inherit pkgDef;
 }
