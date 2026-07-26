@@ -16,6 +16,16 @@ let
   cfg = config.hardware.nvidia-sdk;
   versions = import ../versions.nix;
 
+  # The driver pinned to MATCH the CUDA toolkit (versions.driver.version =
+  # 610.43.02), built for the running kernel. Single source of truth: bump
+  # versions.nix, not this. `driver.package` defaults to this; set
+  # `driver.package` explicitly to override (e.g. the straylight fork via
+  # nvidia-driver.nix's openSource hook).
+  matchedDriver = pkgs.callPackage ../pkgs/nvidia-driver.nix {
+    inherit versions;
+    nvidiaPackages = config.boot.kernelPackages.nvidiaPackages;
+  };
+
 in
 {
   _class = "nixos";
@@ -30,9 +40,14 @@ in
     driver = {
       package = lib.mkOption {
         type = lib.types.package;
-        default = config.boot.kernelPackages.nvidiaPackages.latest;
-        defaultText = lib.literalExpression "config.boot.kernelPackages.nvidiaPackages.latest";
-        description = "The NVIDIA driver package to use.";
+        default = matchedDriver;
+        defaultText = lib.literalExpression "driver pinned to versions.driver.version (matches the CUDA toolkit)";
+        description = ''
+          The NVIDIA driver package. Defaults to the driver pinned in
+          versions.nix to match the CUDA toolkit (610.43.02) — NOT nixpkgs'
+          floating `nvidiaPackages.latest`. Override to ship the straylight
+          high-integrity fork.
+        '';
       };
 
       open = lib.mkOption {

@@ -235,6 +235,24 @@
   # Driver Versions (for NixOS module)
   # ════════════════════════════════════════════════════════════════════════════
 
+  # The complete driver spec — pinned to MATCH the CUDA 13.3.1 toolkit
+  # (both 610.43.02). The NixOS module (nix/modules/nvidia-sdk.nix) builds this
+  # via nixpkgs' nvidiaPackages.mkDriver, so versions.nix is the single source
+  # of truth for the driver instead of floating on nixpkgs `.latest` (which is
+  # `selectHighestVersion` and drifts the moment nixpkgs adds a newer driver).
+  #
+  # Five hashes: the two userspace .run installers (per-arch), plus the three
+  # arch-independent source tarballs mkDriver compiles — open-gpu-kernel-modules,
+  # nvidia-settings, nvidia-persistenced, all at the driver version tag. The two
+  # runfile hashes were prefetched; the three source hashes are the canonical
+  # upstream tarballs (identical to nixpkgs' own 610.43.02 `new_feature`).
+  #
+  # NEXT (the high-integrity arc): openHash points at NVIDIA's stock
+  # open-gpu-kernel-modules 610.43.02. The straylight fork
+  # (git.s4.gl/straylight/straylight-nvidia-drivers, 54 coverage gates on
+  # 610.43.03) is the intended source — see nvidia-driver.nix for the override
+  # hook. Swapping it in is a userspace-version bump (.02 → .03) + a source
+  # override, tracked separately.
   driver = {
     version = "610.43.02";
 
@@ -251,10 +269,11 @@
       hash = "sha256-isWTnokUA/dzWocFBLalnk4+O5gSExVjs3dVpdYTU88=";
     };
 
-    # Open kernel module hashes (Turing+)
-    open = {
-      x86_64-linux.hash = throw "Open driver hash for x86_64-linux not yet populated.";
-      aarch64-linux.hash = throw "Open driver hash for aarch64-linux not yet populated.";
-    };
+    # open-gpu-kernel-modules source (github.com/NVIDIA/open-gpu-kernel-modules
+    # @ 610.43.02). Turing+ only. The fork swap replaces this source.
+    openHash = "sha256-hP5NVZZ4vGsACHLmUDKq4uckpd/kn1GxCSYnnJfAuBs=";
+    # nvidia-settings + nvidia-persistenced source tarballs @ 610.43.02.
+    settingsHash = "sha256-0YAhufRgjDW+uR+kjaTb154fibpcDw8QowfrucoZsKE=";
+    persistencedHash = "sha256-Whgv9X+v2fRhzliOl2LzltY9v1SxDafFfv3IUPqj/hk=";
   };
 }

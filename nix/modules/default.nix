@@ -58,6 +58,15 @@
 
       cuda = pkgs.callPackage ../pkgs/cuda.nix { inherit versions; };
 
+      # The driver pinned to match the CUDA toolkit (versions.driver.version).
+      # Built against the default nixpkgs kernel here so it is a standalone,
+      # CI-buildable artifact; the NixOS module rebuilds it for the running
+      # kernel via config.boot.kernelPackages.
+      nvidia-driver = pkgs.callPackage ../pkgs/nvidia-driver.nix {
+        inherit versions;
+        nvidiaPackages = pkgs.linuxPackages.nvidiaPackages;
+      };
+
       cuda-merged = pkgs.symlinkJoin {
         name = "cuda-${cuda.version}-merged";
         paths = [ cuda ];
@@ -199,6 +208,7 @@
         inherit
           nvidia-sdk
           cuda
+          nvidia-driver
           cudnn
           nccl
           tensorrt
