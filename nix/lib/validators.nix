@@ -26,6 +26,12 @@ let
         "13.1" = {
           minDriver = "590.44.01";
         };
+        "13.3" = {
+          minDriver = "610.43.02";
+        };
+        "13.3.1" = {
+          minDriver = "610.43.02";
+        };
       };
 
       req = matrix.${cudaVersion} or null;

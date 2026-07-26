@@ -1,5 +1,5 @@
 # nvidia-sdk version configuration
-# CUDA 13.3.0 toolkit — Canonical release for SM120 (Blackwell) and SM90 (Hopper)
+# CUDA 13.3.1 toolkit — Canonical release for SM120 (Blackwell) and SM90 (Hopper)
 # Update via: `nix run .#update`
 #
 # NOTE (toolkit vs container split): the redistributable toolkit below is on
@@ -19,10 +19,10 @@
     version = "26.06";
     cuda = "13.3";
     driver = "610.43.02";
-    cudnn = "9.23.2.1";
+    cudnn = "9.25.0.15";
     nccl = "2.30.7";
     tensorrt = "10.15.1.29";
-    cutlass = "4.5.2";
+    cutlass = "4.6.1";
     triton = "26.06";
   };
 
@@ -31,34 +31,34 @@
   # ════════════════════════════════════════════════════════════════════════════
 
   cuda = {
-    version = "13.3";
+    version = "13.3.1";
     driver = "610.43.02";
 
     x86_64-linux = {
-      url = "https://developer.download.nvidia.com/compute/cuda/13.3.0/local_installers/cuda_13.3.0_610.43.02_linux.run";
-      hash = "sha256-X3lIi1f+aTa8laVvm34oOKsvLuMxOxAIlCIG7r4GNS0=";
+      url = "https://developer.download.nvidia.com/compute/cuda/13.3.1/local_installers/cuda_13.3.1_610.43.02_linux.run";
+      hash = "sha256-n5jsH2yVBAEEHT8TCOIh8NXbh3Go4QVpABtkyq7jGpI=";
     };
 
     aarch64-linux = {
-      url = "https://developer.download.nvidia.com/compute/cuda/13.3.0/local_installers/cuda_13.3.0_610.43.02_linux_sbsa.run";
-      hash = "sha256-lOxFchl7ZVMtzz0ydGBBfGUn+kLe2dUBDgbduJ6HjUw=";
+      url = "https://developer.download.nvidia.com/compute/cuda/13.3.1/local_installers/cuda_13.3.1_610.43.02_linux_sbsa.run";
+      hash = "sha256-B1u/F82Vut8TpUYingA1r584/Z580BAlhb1DGVYDkj0=";
     };
   };
 
   cudnn = {
-    version = "9.23.2.1";
+    version = "9.25.0.15";
     x86_64-linux = {
       urls = {
-        upstream = "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-9.23.2.1_cuda13-archive.tar.xz";
+        upstream = "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-9.25.0.15_cuda13-archive.tar.xz";
       };
-      hash = "sha256-WXyqj87H+rzoLDT1qd+pPbQnlUKxfbkvJzkczV1rL8Y=";
+      hash = "sha256-vfjGX5LdVSFB0BH9fnob+6/cYjlmexXETWBFl/qSd0U=";
     };
 
     aarch64-linux = {
       urls = {
-        upstream = "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-sbsa/cudnn-linux-sbsa-9.23.2.1_cuda13-archive.tar.xz";
+        upstream = "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-sbsa/cudnn-linux-sbsa-9.25.0.15_cuda13-archive.tar.xz";
       };
-      hash = "sha256-2SzgNs93I3dxs/Zyobpq6yhPmwDOdnehe4pAf+n6NXw=";
+      hash = "sha256-t/f4kqIS8/bF65sh09zmNeW7aSRSYofqdzOSmFB8Jj4=";
     };
   };
 
@@ -136,9 +136,9 @@
   };
 
   cutlass = {
-    version = "4.5.2";
-    url = "https://github.com/NVIDIA/cutlass/archive/refs/tags/v4.5.2.zip";
-    hash = "sha256-5SMEfoqB2QXRfH5wBwTKKjez0x2zhR8T8EA0bqPMqwM=";
+    version = "4.6.1";
+    url = "https://github.com/NVIDIA/cutlass/archive/refs/tags/v4.6.1.zip";
+    hash = "sha256-Eru8FdTUwuc4xXD9Pu8r0nRP9eK2MTIHHs9eNEiKQ0g=";
   };
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -194,13 +194,13 @@
 
   nsight = {
     compute = {
-      version = "2026.2.0"; # matches nsight-compute-<ver> dir in the CUDA 13.3 .run
+      version = "2026.2.1"; # matches nsight-compute-<ver> dir in the CUDA 13.3.1 .run (redist nsight_compute 2026.2.1.5)
       x86_64-linux.path = "host/linux-desktop-glibc_2_11_3-x64";
       aarch64-linux.path = "host/linux-desktop-t210-a64";
     };
 
     systems = {
-      version = "2026.1.3"; # matches nsight-systems-<ver> dir in the CUDA 13.3 .run
+      version = "2026.1.3"; # matches nsight-systems-<ver> dir in the CUDA 13.3.1 .run (redist nsight_systems 2026.1.3.425)
       x86_64-linux.path = "host-linux-x64";
       aarch64-linux.path = "host-linux-armv8";
     };
@@ -240,12 +240,15 @@
 
     x86_64-linux = {
       url = "https://us.download.nvidia.com/XFree86/Linux-x86_64/610.43.02/NVIDIA-Linux-x86_64-610.43.02.run";
-      hash = throw "Driver hash for x86_64-linux not yet populated. Run: nix-prefetch-url --type sha256 <url> | xargs nix hash convert --hash-algo sha256";
+      hash = "sha256-MDSgVLtM33dS/43CclZMsQVROAS/9TU4lFkBsWyndGM=";
     };
 
+    # NOTE: aarch64 driver runfiles live under XFree86/aarch64/ (NOT
+    # XFree86/Linux-aarch64/, which 404s — that stale path is why this hash
+    # was a throw). x86_64 keeps the Linux-x86_64/ prefix.
     aarch64-linux = {
-      url = "https://us.download.nvidia.com/XFree86/Linux-aarch64/610.43.02/NVIDIA-Linux-aarch64-610.43.02.run";
-      hash = throw "Driver hash for aarch64-linux not yet populated. Run: nix-prefetch-url --type sha256 <url> | xargs nix hash convert --hash-algo sha256";
+      url = "https://us.download.nvidia.com/XFree86/aarch64/610.43.02/NVIDIA-Linux-aarch64-610.43.02.run";
+      hash = "sha256-isWTnokUA/dzWocFBLalnk4+O5gSExVjs3dVpdYTU88=";
     };
 
     # Open kernel module hashes (Turing+)
