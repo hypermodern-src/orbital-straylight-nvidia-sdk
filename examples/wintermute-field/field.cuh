@@ -114,6 +114,8 @@ struct FieldParams {
   float grain;
   float aspect;
   float sweep;    // -1 parked; 0..1 during a reconcile pass
+  float load;     // live GPU utilization 0..1 — drives the beam curtains
+  float power;    // live GPU power draw, normalized — heats the curtain tips
   float3 surface, paper, accent, accentD;
 };
 
@@ -144,6 +146,10 @@ HD float3 fieldColor(float2 uv, const FieldParams& P) {
   float vig = dot2(p, p);
   col = col * (1.f - mixf(0.20f, 0.35f, night) * vig);
 
+  // live warm-up: a working GPU lifts the whole field a touch
+  col = col + night * P.load * 0.022f * mix3(P.accent, P.accentD, 0.5f);
+  col = col - f3(1, 1, 1) * ((1.f - night) * P.load * 0.012f);
+
   // affluent: blooms + the orbital horizon
   if (aff > 0.001f) {
     float2 b1 = f2(sinf(t * 0.157f), sinf(t * 0.111f)) * 0.42f;
@@ -168,8 +174,26 @@ HD float3 fieldColor(float2 uv, const FieldParams& P) {
     col = col + night * aff * 0.16f * lights * P.accentD;
   }
 
-  // facility: constellation mesh + scanlines + rain
+  // facility: SM-occupancy beam curtains + constellation mesh + scanlines + rain
   if (P.reg > 0.001f) {
+    // beam curtains: columns rising from the floor, heights driven by live
+    // GPU load, tips heating toward white with power draw
+    float NCOL = 54.f;
+    float ci = floorf(uv.x * NCOL);
+    float cf = fractf(uv.x * NCOL);
+    float ch2 = hashf(f2(ci, 23.1f));
+    float wob = 0.5f + 0.5f * sinf(t * (0.7f + 1.8f * ch2) + ch2 * 6.2832f);
+    float colH = (0.015f + 0.05f * ch2) + P.load * (0.40f + 0.48f * ch2) * (0.6f + 0.4f * wob);
+    float yUp = 1.f - uv.y;
+    float cwidth = smoothstepf(0.5f, 0.17f, fabsf(cf - 0.5f));
+    float body = cwidth * (1.f - smoothstepf(colH - 0.02f, colH, yUp)) *
+                 (0.35f + 0.65f * clamp01(yUp / fmaxf(colH, 1e-3f)));
+    float tip = cwidth * smoothstepf(0.022f, 0.f, fabsf(yUp - colH));
+    float3 tipCol = mix3(P.accentD, f3(1, 1, 1), 0.35f * P.power);
+    float surge = 0.10f + 0.90f * P.load;   // idle nearly bare, inference ablaze
+    col = col + night * P.reg * surge * (0.055f * body * P.accent + 0.26f * tip * tipCol);
+    col = col - f3(1, 1, 1) * ((1.f - night) * P.reg * (0.045f * body + 0.10f * tip));
+
     const float GATE = 0.978f;
     float2 gp = p * 14.f;
     float2 cell = f2(floorf(gp.x), floorf(gp.y));
@@ -208,13 +232,13 @@ HD float3 fieldColor(float2 uv, const FieldParams& P) {
 
     float colId = floorf(p.x * 26.f);
     float ch = hashf(f2(colId, 3.7f));
-    float head = fractf(t * (0.04f + 0.11f * ch) + ch * 7.31f);
+    float head = fractf(t * (0.04f + 0.11f * ch) * (1.f + 2.2f * P.load) + ch * 7.31f);
     float dCol = head - uv.y;
     float trail = smoothstepf(0.35f, 0.f, fabsf(dCol)) * stepf(0.f, dCol);
     float core2 = smoothstepf(0.45f, 0.10f, fabsf(fractf(p.x * 26.f) - 0.5f));
     float cellY = floorf(uv.y * 90.f);
-    float glyph = 0.30f + 0.70f * hashf(f2(colId * 3.1f, cellY + floorf(t * 6.f) * 0.13f));
-    float rain = trail * core2 * glyph * stepf(0.72f, ch);
+    float glyph = 0.30f + 0.70f * hashf(f2(colId * 3.1f, cellY + floorf(t * (6.f + 18.f * P.load)) * 0.13f));
+    float rain = trail * core2 * glyph * stepf(0.72f - 0.30f * P.load, ch);
     col = col + night * P.reg * 0.050f * rain * P.accent;
     col = col - f3(1, 1, 1) * ((1.f - night) * P.reg * 0.032f * rain);
   }
@@ -230,7 +254,7 @@ HD float3 fieldColor(float2 uv, const FieldParams& P) {
     col = col - f3(1, 1, 1) * (0.030f * trace);
 
     float dir = lh > 0.80f ? 1.f : -1.f;
-    float speed = 0.06f + 0.18f * hashf(f2(laneRow, 5.1f));
+    float speed = (0.06f + 0.18f * hashf(f2(laneRow, 5.1f))) * (1.f + 1.6f * P.load);
     float along = fractf(p.x * 0.5f / P.aspect + 0.5f - dir * t * speed + lh * 9.f);
     float pulse2 = smoothstepf(0.020f, 0.004f, along);
     float tail = smoothstepf(0.16f, 0.f, along) * 0.30f;

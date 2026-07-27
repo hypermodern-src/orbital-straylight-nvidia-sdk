@@ -7,7 +7,7 @@ int main(int argc, char** argv) {
   std::string out = "field.ppm", theme;
 
   FieldParams P{};
-  P.time = 8.f; P.reg = 1.f; P.grain = 0.02f; P.sweep = -1.f;
+  P.time = 8.f; P.reg = 1.f; P.grain = 0.02f; P.sweep = -1.f; P.load = 0.f; P.power = 0.f;
   P.surface = f3(0.098f, 0.110f, 0.122f);   // #191c1f carbon
   P.paper   = f3(0.118f, 0.137f, 0.161f);   // #1e2329
   P.accent  = f3(0.322f, 0.647f, 1.f);      // #52a5ff
@@ -20,6 +20,8 @@ int main(int argc, char** argv) {
     else if (a == "--time") P.time = atof(next());
     else if (a == "--reg") P.reg = atof(next());
     else if (a == "--sweep") P.sweep = atof(next());
+    else if (a == "--load") P.load = atof(next());
+    else if (a == "--power") P.power = atof(next());
     else if (a == "--frames") frames = atoi(next());
     else if (a == "--out") out = next();
     else if (a == "--theme") theme = next();
