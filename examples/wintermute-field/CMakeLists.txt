@@ -53,7 +53,7 @@ if(WAYLAND_FOUND AND WAYLAND_SCANNER AND WLR_LAYER_SHELL_XML AND XDG_SHELL_XML)
     CXX_STANDARD 20
   )
   target_include_directories(wintermute-field-daemon PRIVATE ${GEN} ${WAYLAND_INCLUDE_DIRS})
-  target_link_libraries(wintermute-field-daemon PRIVATE ${WAYLAND_LIBRARIES})
+  target_link_libraries(wintermute-field-daemon PRIVATE ${WAYLAND_LIBRARIES} CUDA::nvml)
   install(TARGETS wintermute-field-daemon RUNTIME DESTINATION bin)
 else()
   message(STATUS "wayland/scanner/protocol xmls not provided — CLI only")

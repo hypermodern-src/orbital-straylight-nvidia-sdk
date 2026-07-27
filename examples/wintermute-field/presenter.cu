@@ -36,6 +36,7 @@
 #include <unistd.h>
 #include <csignal>
 #include <ctime>
+#include <nvml.h>
 
 // ── BGRA kernel wrapper (wl_shm XRGB8888 is b,g,r,x little-endian) ────────
 
@@ -84,6 +85,12 @@ struct App {
   double fpsInterval = 1.0 / 30.0;
   double lastFrame = 0;
   long framesLeft = -1;         // --frames N: exit after N (test mode)
+
+  // live GPU telemetry (NVML) — the field breathes with the real machine
+  bool nvmlOk = false;
+  nvmlDevice_t nvmlDev{};
+  float loadTarget = 0.f;
+  float powerTarget = 0.f;
 };
 
 static App app;
@@ -180,6 +187,18 @@ static bool makeBuffers() {
 
 static void renderFrame();
 
+// Poll GPU utilization + power draw. Best-effort: if NVML is unavailable the
+// targets stay 0 and the field renders its calm idle state.
+static void nvmlPoll() {
+  if (!app.nvmlOk) return;
+  nvmlUtilization_t u;
+  if (nvmlDeviceGetUtilizationRates(app.nvmlDev, &u) == NVML_SUCCESS)
+    app.loadTarget = u.gpu * 0.01f;
+  unsigned int mw = 0;
+  if (nvmlDeviceGetPowerUsage(app.nvmlDev, &mw) == NVML_SUCCESS)
+    app.powerTarget = fminf(1.f, (mw * 1e-3f) / 140.f);   // ~140W board ceiling
+}
+
 static void frameDone(void* data, wl_callback* cb, uint32_t);
 static const wl_callback_listener frameListener = {frameDone};
 
@@ -193,6 +212,10 @@ static void renderFrame() {
   double t = nowSec();
   app.P.aspect = (float)app.width / app.height;
   app.P.time = (float)fmod(t, 86400.0);
+
+  // ease live telemetry into the field (the 2Hz poll reads as a smooth breath)
+  app.P.load += (app.loadTarget - app.P.load) * 0.06f;
+  app.P.power += (app.powerTarget - app.P.power) * 0.06f;
 
   // reconcile sweep: 0.9s pass on generation change, parked otherwise
   double sw = t - app.sweepStart;
@@ -222,7 +245,7 @@ static void frameDone(void*, wl_callback* cb, uint32_t) {
   double t = nowSec();
 
   static int themePoll = 0;
-  if (++themePoll >= 15) { themePoll = 0; themeTick(); }
+  if (++themePoll >= 15) { themePoll = 0; themeTick(); nvmlPoll(); }
 
   if (t - app.lastFrame >= app.fpsInterval)
     renderFrame();
@@ -282,6 +305,15 @@ int main(int argc, char** argv) {
   themeTick();
   app.generation = readGeneration(app.themePath);   // no sweep on boot
 
+  if (nvmlInit() == NVML_SUCCESS &&
+      nvmlDeviceGetHandleByIndex(0, &app.nvmlDev) == NVML_SUCCESS) {
+    app.nvmlOk = true;
+    nvmlPoll();
+    fprintf(stderr, "wintermute-field-daemon: NVML live — curtains track the GPU\n");
+  } else {
+    fprintf(stderr, "wintermute-field-daemon: NVML unavailable — field runs idle\n");
+  }
+
   if (pipe(sigPipe) < 0) { perror("pipe"); return 1; }
   signal(SIGINT, onSignal);
   signal(SIGTERM, onSignal);
@@ -323,6 +355,7 @@ int main(int argc, char** argv) {
   // 0% GPU until the compositor wants frames again (or a signal lands)
   while (app.running && pumpEvents(-1)) {}
 
+  if (app.nvmlOk) nvmlShutdown();
   if (app.zeroCopy) cudaHostUnregister(app.pool);
   if (app.devScratch) cudaFree(app.devScratch);
   wl_display_disconnect(app.display);

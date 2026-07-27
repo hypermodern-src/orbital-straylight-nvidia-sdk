@@ -119,6 +119,135 @@ struct FieldParams {
   float3 surface, paper, accent, accentD;
 };
 
+// 5x7 uppercase font (row-major, low 5 bits) — the CASK6 lingo.
+// index via glyphIndex(); each glyph is 7 rows.
+HD int glyphIndex(char c) {
+  const char* o = " .:_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  for (int i = 0; o[i]; i++) if (o[i] == c) return i;
+  return 0;
+}
+HD unsigned int glyphRow(int gi, int row) {
+  static const unsigned char F[40][7] = {
+    {0,0,0,0,0,0,0},
+    {0,0,0,0,0,6,6},
+    {0,6,6,0,6,6,0},
+    {0,0,0,0,0,0,31},
+    {14,17,19,21,25,17,14},
+    {4,12,4,4,4,4,14},
+    {14,17,1,2,4,8,31},
+    {31,2,4,2,1,17,14},
+    {2,6,10,18,31,2,2},
+    {31,16,30,1,1,17,14},
+    {6,8,16,30,17,17,14},
+    {31,1,2,4,8,8,8},
+    {14,17,17,14,17,17,14},
+    {14,17,17,15,1,2,12},
+    {14,17,17,31,17,17,17},
+    {30,17,17,30,17,17,30},
+    {14,17,16,16,16,17,14},
+    {28,18,17,17,17,18,28},
+    {31,16,16,30,16,16,31},
+    {31,16,16,30,16,16,16},
+    {14,17,16,23,17,17,15},
+    {17,17,17,31,17,17,17},
+    {14,4,4,4,4,4,14},
+    {7,2,2,2,2,18,12},
+    {17,18,20,24,20,18,17},
+    {16,16,16,16,16,16,31},
+    {17,27,21,21,17,17,17},
+    {17,17,25,21,19,17,17},
+    {14,17,17,17,17,17,14},
+    {30,17,17,30,16,16,16},
+    {14,17,17,17,21,18,13},
+    {30,17,17,30,20,18,17},
+    {15,16,16,14,1,1,30},
+    {31,4,4,4,4,4,4},
+    {17,17,17,17,17,17,14},
+    {17,17,17,17,17,10,4},
+    {17,17,17,21,21,27,17},
+    {17,17,10,4,10,17,17},
+    {17,17,10,4,4,4,4},
+    {31,1,2,4,8,16,31},
+  };
+  if (gi < 0 || gi >= 40 || row < 0 || row > 6) return 0u;
+  return F[gi][row];
+}
+// ── the kernel word: render a 5x7 bitmap string as glowing digital text ────
+// Hard pixels (the data aesthetic) + a soft bounding-box halo (words emit
+// light, cf. ESCAPE / EYES / REAL in the reference reel).
+HD float renderWord(float2 uv, const char* word, int wlen,
+                    float ox, float oy, float gh, float aspect) {
+  float ty01 = (uv.y - oy) / gh;
+  if (ty01 < 0.f || ty01 > 1.f) return 0.f;
+  float gwuv = gh * (5.f / 7.f) / aspect;   // glyph width in uv.x, square pixels
+  float adv = gwuv * 1.18f;                 // advance incl. gap
+  float rel = uv.x - ox;
+  if (rel < 0.f) return 0.f;
+  int ci = (int)(rel / adv);
+  if (ci < 0 || ci >= wlen) return 0.f;
+  float lx01 = (rel - ci * adv) / gwuv;     // 0..1 across the glyph
+  if (lx01 > 1.f) return 0.f;               // in the inter-glyph gap
+  int gx = (int)(lx01 * 5.f);
+  int gy = (int)(ty01 * 7.f);
+  if (gx < 0 || gx > 4 || gy < 0 || gy > 6) return 0.f;
+  unsigned int bits = glyphRow(glyphIndex(word[ci]), gy);
+  return ((bits >> (4 - gx)) & 1u) ? 1.f : 0.f;
+}
+
+// One big CASK6 word at a time, cycling, glitch-revealed. Returns glow.
+HD float kernelGlyphs(float2 uv, float t, float aspect, float load, float3& tint,
+                      float3 accent, float3 accentD) {
+  const char* W[8] = { "TCGEN05.MMA", "WGMMA.SYNC", "CP.ASYNC.BULK",
+                       "MBARRIER.ARRIVE", "SM_121A", "CASK6::GRAPH",
+                       "TMEM_LD", "XMMA_GEMM_F16" };
+  const int  L[8] = { 11, 10, 13, 15, 7, 12, 7, 13 };
+  float period = 3.6f;
+  int wi = ((int)(t / period)) & 7;
+  float ph = fractf(t / period);
+  const char* w = W[wi];
+  int wl = L[wi];
+  // life: glitch-in, hold, cut out
+  float vis = smoothstepf(0.f, 0.10f, ph) * smoothstepf(1.f, 0.82f, ph);
+
+  float gh = 0.16f + 0.05f * hashf(f2((float)wi, 2.2f));
+  float gwuv = gh * (5.f / 7.f) / aspect;
+  float wordW = wl * gwuv * 1.18f;
+  float ox = 0.5f - wordW * 0.5f;
+  float oy = 0.08f + 0.15f * hashf(f2((float)wi, 5.5f));
+
+  // horizontal RGB-split glitch: per-scanline jitter, strong during reveal
+  float rev = 1.f - smoothstepf(0.f, 0.30f, ph);
+  float band = floorf(uv.y * 46.f);
+  float gj = (hashf(f2(band, floorf(t * 34.f))) - 0.5f) * (0.006f + 0.020f * rev);
+  float on = renderWord(f2(uv.x + gj, uv.y), w, wl, ox, oy, gh, aspect);
+
+  // box halo: soft rectangle behind the word → the emitted glow
+  float dx = fmaxf(fmaxf(ox - uv.x, uv.x - (ox + wordW)), 0.f);
+  float dy = fmaxf(fmaxf(oy - uv.y, uv.y - (oy + gh)), 0.f);
+  float halo = expf(-90.f * (dx * dx + dy * dy));
+
+  tint = mix3(accent, accentD, 0.22f);
+  return vis * (on * (0.55f + 0.35f * load) + 0.05f * halo);
+}
+
+// The burn: diagonal plasma rays sweeping across, white-hot core + accent
+// glow, entering/leaving off-frame. Load scales the blaze.
+HD float burnAt(float2 p, float t, float load, float aspect) {
+  float b = 0.f;
+  for (int i = 0; i < 4; i++) {
+    float fi = (float)i;
+    float slope = 0.28f + 0.12f * hashf(f2(fi, 4.2f));
+    float phase = fractf(t * (0.035f + 0.020f * hashf(f2(fi, 7.7f))) + fi * 0.41f);
+    float off = mixf(-1.6f, 1.6f, phase) * aspect;
+    float d = p.x - slope * p.y - off;
+    float core = expf(-520.f * d * d);
+    float glow = expf(-110.f * d * d);
+    float life = smoothstepf(0.f, 0.12f, phase) * smoothstepf(1.f, 0.86f, phase);
+    b += life * (core + 0.09f * glow);
+  }
+  return b * (0.16f + 0.84f * load);
+}
+
 // ── THE FIELD — one function, host and device ─────────────────────────────
 
 HD float3 fieldColor(float2 uv, const FieldParams& P) {
@@ -241,6 +370,31 @@ HD float3 fieldColor(float2 uv, const FieldParams& P) {
     float rain = trail * core2 * glyph * stepf(0.72f - 0.30f * P.load, ch);
     col = col + night * P.reg * 0.050f * rain * P.accent;
     col = col - f3(1, 1, 1) * ((1.f - night) * P.reg * 0.032f * rain);
+  }
+
+  // ── THE HOSAKA REEL — burn, kernel words, reflective floor ─────────────
+  // The reference-reel motifs, facility/night only. All load-reactive: idle
+  // is a quiet console, inference is the music video.
+  if (P.reg > 0.001f && night > 0.5f) {
+    float3 hot = mix3(P.accentD, f3(1, 1, 1), 0.55f);
+
+    // the burn
+    float burn = burnAt(p, t, P.load, P.aspect);
+    col = col + P.reg * 0.030f * burn * mix3(P.accent, hot, 0.5f);
+
+    // reflective floor: the rays echo below a horizon, mirrored + rippled
+    float horizon = 0.64f;
+    if (uv.y > horizon) {
+      float depth = (uv.y - horizon) / (1.f - horizon);
+      float my = (2.f * horizon - uv.y) - 0.5f + 0.015f * sinf(uv.x * 48.f + t * 2.2f) * depth;
+      float burnR = burnAt(f2(p.x, my), t, P.load, P.aspect);
+      col = col + P.reg * 0.015f * (1.f - 0.7f * depth) * burnR * mix3(P.accent, hot, 0.4f);
+    }
+
+    // the CASK6 kernel words
+    float3 wtint;
+    float word = kernelGlyphs(uv, t, P.aspect, P.load, wtint, P.accent, P.accentD);
+    col = col + P.reg * 0.30f * word * mix3(wtint, hot, 0.10f * P.load);
   }
 
   // day signature: the MAAS BIOCHIP
