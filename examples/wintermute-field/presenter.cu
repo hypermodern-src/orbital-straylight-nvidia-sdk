@@ -88,6 +88,7 @@ struct App {
 
   // live GPU telemetry (NVML) — the field breathes with the real machine
   bool nvmlOk = false;
+  bool needsResurface = false;  // compositor closed our surface → rebuild it
   nvmlDevice_t nvmlDev{};
   float loadTarget = 0.f;
   float powerTarget = 0.f;
@@ -106,8 +107,9 @@ static double nowSec() {
 static int readGeneration(const std::string& path) {
   std::ifstream f(path);
   if (!f) return -1;
-  std::stringstream ss; ss << f.rdbuf();
-  std::string s = ss.str();
+  char buf[8192];                 // "generation" sits at the head of theme.json
+  f.read(buf, sizeof(buf));
+  std::string s(buf, (size_t)f.gcount());
   auto r = s.find("\"generation\"");
   if (r == std::string::npos) return -1;
   auto colon = s.find(':', r);
@@ -146,7 +148,11 @@ static void layerConfigure(void*, zwlr_layer_surface_v1* ls, uint32_t serial,
   app.configured = true;
 }
 
-static void layerClosed(void*, zwlr_layer_surface_v1*) { app.running = false; }
+// The compositor destroyed our layer surface — happens on output
+// reconfiguration (resolution/scale change, monitor hotplug, DPMS, login).
+// Do NOT exit: rebuild the surface in place. Exiting here is what blanked the
+// desktop (with a restart) or flickered it (with Restart=always).
+static void layerClosed(void*, zwlr_layer_surface_v1*) { app.needsResurface = true; }
 static const zwlr_layer_surface_v1_listener layerListener = {layerConfigure, layerClosed};
 
 static bool makeBuffers() {
@@ -209,6 +215,7 @@ static void scheduleFrame() {
 }
 
 static void renderFrame() {
+  if (!app.configured || app.needsResurface || !app.surface) return;
   double t = nowSec();
   app.P.aspect = (float)app.width / app.height;
   app.P.time = (float)fmod(t, 86400.0);
@@ -242,6 +249,7 @@ static void renderFrame() {
 
 static void frameDone(void*, wl_callback* cb, uint32_t) {
   wl_callback_destroy(cb);
+  if (app.needsResurface || !app.surface) return;   // rebuild path owns the loop
   double t = nowSec();
 
   static int themePoll = 0;
@@ -278,6 +286,40 @@ static bool pumpEvents(int timeoutMs) {
   if (r <= 0) return false;                       // error or timeout
   if (fds[1].revents & POLLIN) return false;      // signal
   return wl_display_dispatch_pending(app.display) >= 0;
+}
+
+// ── surface lifecycle: build + tear down, so we can rebuild in place ───────
+
+static void teardownSurface() {
+  if (app.zeroCopy) { cudaHostUnregister(app.pool); app.zeroCopy = false; }
+  if (app.devScratch) { cudaFree(app.devScratch); app.devScratch = nullptr; }
+  if (app.pool && app.pool != MAP_FAILED) { munmap(app.pool, app.poolSize); }
+  app.pool = nullptr; app.poolSize = 0;
+  for (int i = 0; i < 2; i++) { if (app.buffers[i]) wl_buffer_destroy(app.buffers[i]); app.buffers[i] = nullptr; }
+  app.devPtrs[0] = app.devPtrs[1] = nullptr;
+  if (app.layerSurface) { zwlr_layer_surface_v1_destroy(app.layerSurface); app.layerSurface = nullptr; }
+  if (app.surface) { wl_surface_destroy(app.surface); app.surface = nullptr; }
+  app.configured = false;
+}
+
+static bool setupSurface() {
+  app.configured = false;
+  app.surface = wl_compositor_create_surface(app.compositor);
+  app.layerSurface = zwlr_layer_shell_v1_get_layer_surface(
+      app.layerShell, app.surface, nullptr,
+      ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND, "wintermute-field");
+  zwlr_layer_surface_v1_add_listener(app.layerSurface, &layerListener, nullptr);
+  zwlr_layer_surface_v1_set_anchor(app.layerSurface,
+      ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+      ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+  zwlr_layer_surface_v1_set_exclusive_zone(app.layerSurface, -1);
+  wl_surface_commit(app.surface);
+
+  for (int i = 0; !app.configured && i < 30; i++)
+    if (!pumpEvents(100)) return false;         // display died → let main exit→restart
+  if (!app.configured) return false;
+  if (app.width <= 0 || app.height <= 0) { app.width = 1920; app.height = 1080; }
+  return makeBuffers();
 }
 
 // ── main ──────────────────────────────────────────────────────────────────
@@ -317,6 +359,14 @@ int main(int argc, char** argv) {
   if (pipe(sigPipe) < 0) { perror("pipe"); return 1; }
   signal(SIGINT, onSignal);
   signal(SIGTERM, onSignal);
+  // A wallpaper daemon must not fall over to a stray signal. SIGTERM/SIGINT
+  // are the only ways out (systemd stop). Everything else is ignored: SIGHUP
+  // (session/terminal hangup), SIGUSR1/2 (someone's kill -USR1), SIGPIPE (a
+  // broken write surfaces as EPIPE, never a death).
+  signal(SIGHUP, SIG_IGN);
+  signal(SIGPIPE, SIG_IGN);
+  signal(SIGUSR1, SIG_IGN);
+  signal(SIGUSR2, SIG_IGN);
 
   app.display = wl_display_connect(nullptr);
   if (!app.display) { fprintf(stderr, "no wayland display\n"); return 1; }
@@ -329,35 +379,48 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  app.surface = wl_compositor_create_surface(app.compositor);
-  app.layerSurface = zwlr_layer_shell_v1_get_layer_surface(
-      app.layerShell, app.surface, nullptr,
-      ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND, "wintermute-field");
-  zwlr_layer_surface_v1_add_listener(app.layerSurface, &layerListener, nullptr);
-  zwlr_layer_surface_v1_set_anchor(app.layerSurface,
-      ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
-      ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
-  zwlr_layer_surface_v1_set_exclusive_zone(app.layerSurface, -1);
-  wl_surface_commit(app.surface);
-
-  for (int i = 0; !app.configured && i < 30; i++) pumpEvents(100);
-  if (!app.configured) { fprintf(stderr, "no configure from compositor\n"); return 1; }
-  if (app.width <= 0 || app.height <= 0) { app.width = 1920; app.height = 1080; }
+  if (!setupSurface()) { fprintf(stderr, "no configure from compositor\n"); return 1; }
   fprintf(stderr, "wintermute-field-daemon: %dx%d, theme %s\n",
           app.width, app.height, app.themePath.c_str());
-
-  if (!makeBuffers()) { fprintf(stderr, "buffer setup failed\n"); return 1; }
 
   renderFrame();
   scheduleFrame();
 
-  // frame callbacks pace us when visible; fully occluded we park in poll at
-  // 0% GPU until the compositor wants frames again (or a signal lands)
-  while (app.running && pumpEvents(-1)) {}
+  // The run loop. Frame callbacks pace us when visible; fully occluded we park
+  // in poll at 0% GPU. When the compositor tears our surface down we rebuild it
+  // in place (new size and all) rather than exiting — seamless across output
+  // reconfiguration, and immune to a reconfiguration STORM (no process churn).
+  while (app.running) {
+    if (app.needsResurface) {
+      app.needsResurface = false;
+      teardownSurface();
+      timespec settle{0, 150 * 1000 * 1000};   // 150ms: let the reconfig settle
+      nanosleep(&settle, nullptr);
+      if (!setupSurface()) {
+        teardownSurface();
+        // Tell apart a DEAD display (compositor gone → exit, let systemd
+        // restart us fresh) from a live display with NO usable output yet
+        // (a monitor unplugged/disabled). In the latter we must NOT exit and
+        // churn through restarts — keep the process alive and retry until an
+        // output returns. A signal still breaks us out via pumpEvents.
+        if (wl_display_get_error(app.display) != 0) {
+          fprintf(stderr, "wintermute-field-daemon: display gone; exit for restart\n");
+          break;
+        }
+        timespec backoff{0, 500 * 1000 * 1000};
+        nanosleep(&backoff, nullptr);
+        continue;                                // no output — wait, retry in place
+      }
+      fprintf(stderr, "wintermute-field-daemon: surface rebuilt %dx%d\n", app.width, app.height);
+      renderFrame();
+      scheduleFrame();
+      continue;
+    }
+    if (!pumpEvents(-1)) break;
+  }
 
+  teardownSurface();
   if (app.nvmlOk) nvmlShutdown();
-  if (app.zeroCopy) cudaHostUnregister(app.pool);
-  if (app.devScratch) cudaFree(app.devScratch);
   wl_display_disconnect(app.display);
   return 0;
 }

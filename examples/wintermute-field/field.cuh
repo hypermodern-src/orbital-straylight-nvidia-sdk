@@ -39,6 +39,8 @@ where it earns its keep. Palette arrives from wintermute's theme.json
 #include <cuda_runtime.h>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include <cstdlib>
+#include <cmath>
 
 // ── float3 helpers (host+device) ──────────────────────────────────────────
 
@@ -471,7 +473,19 @@ inline bool hexAfter(const std::string& s, const std::string& key, float3& out) 
   if (k == std::string::npos) return false;
   auto hash = s.find('#', k);
   if (hash == std::string::npos || hash + 7 > s.size()) return false;
-  unsigned v = std::stoul(s.substr(hash + 1, 6), nullptr, 16);
+  // Manual hex parse — std::stoul THROWS on non-hex (e.g. "#zzzzzz" in a
+  // malformed theme.json), which aborts the daemon. A wallpaper reader must
+  // never crash on its input: reject cleanly and keep the prior colour.
+  unsigned v = 0;
+  for (int i = 1; i <= 6; i++) {
+    char c = s[hash + i];
+    int d;
+    if (c >= '0' && c <= '9') d = c - '0';
+    else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+    else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+    else return false;
+    v = (v << 4) | (unsigned)d;
+  }
   out = f3(((v >> 16) & 0xff) / 255.f, ((v >> 8) & 0xff) / 255.f, (v & 0xff) / 255.f);
   return true;
 }
@@ -479,8 +493,12 @@ inline bool hexAfter(const std::string& s, const std::string& key, float3& out) 
 inline void loadTheme(const std::string& path, FieldParams& P) {
   std::ifstream f(path);
   if (!f) { fprintf(stderr, "wintermute-field: cannot read %s\n", path.c_str()); return; }
-  std::stringstream ss; ss << f.rdbuf();
-  std::string s = ss.str();
+  // Bounded read: a theme.json is well under 1KB; reading the WHOLE file every
+  // tick lets a pathological (or accidental) huge file pin the CPU or OOM the
+  // daemon. 64KB is generous headroom for every field we parse.
+  char buf[65536];
+  f.read(buf, sizeof(buf));
+  std::string s(buf, (size_t)f.gcount());
   hexAfter(s, "base00", P.surface);
   hexAfter(s, "base01", P.paper);
   hexAfter(s, "base0A", P.accent);
@@ -488,7 +506,16 @@ inline void loadTheme(const std::string& path, FieldParams& P) {
   auto r = s.find("\"register\"");
   if (r != std::string::npos) {
     auto colon = s.find(':', r);
-    if (colon != std::string::npos) P.reg = std::stof(s.substr(colon + 1));
+    if (colon != std::string::npos) {
+      // strtof, not std::stof — the latter THROWS on a non-numeric value and
+      // aborts the daemon. Require an actual number, reject NaN/inf, clamp to
+      // the field's [0,1] domain so a garbage value can't distort the render.
+      const char* p = s.c_str() + colon + 1;
+      char* endp = nullptr;
+      float val = strtof(p, &endp);
+      if (endp != p && std::isfinite(val))
+        P.reg = fminf(1.f, fmaxf(0.f, val));
+    }
   }
 }
 
