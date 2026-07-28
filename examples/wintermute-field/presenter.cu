@@ -305,9 +305,14 @@ static void teardownSurface() {
 static bool setupSurface() {
   app.configured = false;
   app.surface = wl_compositor_create_surface(app.compositor);
+  // BOTTOM, not BACKGROUND: the wlr layer order is background < bottom < top,
+  // so this deterministically stacks ABOVE the QML wallpaper (which holds
+  // BACKGROUND as the always-present safety-net floor) and below windows. No
+  // creation-order race between the two renderers — the field wins when it's
+  // up, the QML floor shows through the instant it isn't. Never a blank desktop.
   app.layerSurface = zwlr_layer_shell_v1_get_layer_surface(
       app.layerShell, app.surface, nullptr,
-      ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND, "wintermute-field");
+      ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM, "wintermute-field");
   zwlr_layer_surface_v1_add_listener(app.layerSurface, &layerListener, nullptr);
   zwlr_layer_surface_v1_set_anchor(app.layerSurface,
       ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
