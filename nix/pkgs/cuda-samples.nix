@@ -32,6 +32,11 @@ stdenv.mkDerivation {
   ];
 
   postPatch = ''
+        # The samples pass `-lineinfo`, which nvcc forwards to cicc as
+        # `-generate-line-info` — a spelling this toolkit's cicc rejects.
+        # Line info is debug-tool garnish; strip it.
+        find Samples -name CMakeLists.txt -exec sed -i 's/ -lineinfo//g' {} +
+
         # Build core samples confirmed to exist in v13.0
         cat > CMakeLists.txt << 'EOF'
     cmake_minimum_required(VERSION 3.20)
