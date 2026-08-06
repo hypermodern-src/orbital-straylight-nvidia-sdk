@@ -86,7 +86,7 @@ hardware.nvidia-sdk = {
 **Driver Compatibility:**
 
 - Drivers are backward compatible
-- CUDA 13.3.1 requires driver ≥ 590.44.01
+- CUDA 13.3.1 requires driver ≥ 610.43.02 (the matched release — see nix/versions.nix)
 - Works with: 590.44.01, any 590.x+
 
 #### 2. NVIDIA Persistenced (Enabled by Default)
@@ -160,7 +160,7 @@ globally.
 
 ### Compatibility Matrix
 
-CUDA 13.3.1 works with any driver ≥ 590.44.01:
+CUDA 13.3.1 pairs with driver 610.43.02 (see nix/versions.nix); the 590-series table below is the prior 13.1-era guidance:
 
 | Driver Version | Release Date | Status | |----------------|--------------|--------| | 590.44.01 |
 Jan 2026 | Minimum for CUDA 13.3.1 | | 590.54.01 | Feb 2026 | ✅ Recommended | | 590.65.01 | Mar 2026 |
