@@ -3,6 +3,11 @@
 Production-grade NVIDIA CUDA SDK for NixOS with complete driver integration, container runtime
 support, and headless server capabilities.
 
+> Part of the straylight build — this repo's book (the SDK, the nv cell)
+> lives in [`doc/`](doc/) (`cd doc && buck2 build //:book`); the cross-repo
+> hub book is
+> [`straylight-mdbook`](https://git.s4.gl/straylight/straylight-mdbook).
+
 **📚 [Complete Documentation Index](DOCS.md)**
 
 **Key Features:**
