@@ -1,0 +1,49 @@
+# The EXECUTION PLATFORMS SNAPSHOT — fleet-shaped execution policy, baked into
+# the buck2 binary as prelude//platforms (Gate E). Paired with the baked
+# [buck2_re_client] defaults (watchtower), so a project selects a mode with ONE
+# .buckconfig line and zero addresses:
+#
+#   [build]
+#   execution_platforms = prelude//platforms:remote-only   # the RBE-only bar
+#   execution_platforms = prelude//platforms:lre           # local + RE cache
+#   execution_platforms = prelude//platforms:hybrid        # remote, local fallback
+#
+# No line at all = plain local execution (the greenfield default). Project-
+# defined platforms always win — define your own and point the line at them.
+
+# REMOTE-ONLY: remote is the executor and a remote failure FAILS the build —
+# no silent local fallback masking fleet problems. The local arm exists solely
+# for local_only-pinned actions (nix_build / network fetch edges).
+execution_platforms(
+    name = "remote-only",
+    mode = "rbe",
+    local_fallback = False,
+    properties = [
+        "OSFamily=linux",
+        "cpu_arch=x86_64",
+    ],
+    max_cache_upload_mebibytes = 1024,
+    visibility = ["PUBLIC"],
+)
+
+# HYBRID: remote execution with failure-fallback to local.
+execution_platforms(
+    name = "hybrid",
+    mode = "rbe",
+    properties = [
+        "OSFamily=linux",
+        "cpu_arch=x86_64",
+    ],
+    max_cache_upload_mebibytes = 1024,
+    visibility = ["PUBLIC"],
+)
+
+# LRE: local execution + the RE cache (read/write) — 20-minute rebuilds become
+# downloads. max_cache_upload_mebibytes caps per-output uploads (buck2 blocks an
+# action on its cache upload; oversized outputs are cleanly skipped).
+execution_platforms(
+    name = "lre",
+    mode = "cache",
+    max_cache_upload_mebibytes = 1024,
+    visibility = ["PUBLIC"],
+)

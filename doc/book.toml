@@ -1,0 +1,10 @@
+[book]
+title = "straylight-nvidia-sdk: The CUDA Cell"
+authors = ["Straylight"]
+language = "en"
+src = "src"
+description = "The NVIDIA SDK as a content-addressed cell: what it carries, the prune and stage decisions, and how it releases."
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"

@@ -1,0 +1,68 @@
+# The CELLS SNAPSHOT — the canonical CAS toolchain cells, baked into the buck2
+# binary and served as prelude//cells (Gate B of "buck2 just works": toolchains
+# resolve with ZERO project configuration).
+#
+# The digests are the §6 REAPI roots of the producer's cells (straylight-
+# toolchain cells/BUCK is the upstream source of truth; this file is the
+# consumer-shipped snapshot of it). REFRESH mechanically, never by hand:
+#
+#   straylight cell gen --buck wasm-prelude/cell/cells/BUCK NAME=<built-tree> ...
+#
+# then rebuild buck2. A project can still shadow any of this: explicit
+# `toolchain =` attrs and project-defined cells always win over these defaults.
+
+cas_toolchain(
+    name = "cc_cas",
+    digest = "a86ec9efabe7cbba98ffe45d707c2aaca9c9e2d6fb1798bb2d4d3bff604f7b3f:319",
+    use_case = "buck2-default",
+    visibility = ["PUBLIC"],
+)
+
+cas_toolchain(
+    name = "cxx_cas",
+    digest = "9bad876480dc022d8725bcf6e58eb4a3774f31cc4cdd9a63d83ef1f2667fe53a:319",
+    use_case = "buck2-default",
+    visibility = ["PUBLIC"],
+)
+
+cas_toolchain(
+    name = "rust_cas",
+    digest = "580e01383d8805689ef3bb4d3e383879bf7f4fdb9f740eb1342f01bd1c5fc297:477",
+    use_case = "buck2-default",
+    visibility = ["PUBLIC"],
+)
+
+cas_toolchain(
+    name = "ghc_cas",
+    digest = "61c5829a4b00afa12303d3064898ec448a2173df061508dc7093482f47915a7c:476",
+    use_case = "buck2-default",
+    visibility = ["PUBLIC"],
+)
+
+cas_toolchain(
+    name = "lean_cas",
+    digest = "d663df9af4277b3ff43b473d1cff01616d94bdb4fe4f1565904ed2f076f1b28c:471",
+    use_case = "buck2-default",
+    visibility = ["PUBLIC"],
+)
+
+cas_toolchain(
+    name = "prelude_tools_cas",
+    digest = "f4a7b7fa3a916293b8ccb3752e7ea3c410e6968e4148abe38bcbe34cd4c61784:233",
+    use_case = "buck2-default",
+    visibility = ["PUBLIC"],
+)
+
+cas_toolchain(
+    name = "nv_cas",
+    digest = "8af45100f6474ec04c6e04a2c1bfd08c52a30c7da1e3f26018a374b3dff2e05d:556",
+    use_case = "buck2-default",
+    visibility = ["PUBLIC"],
+)
+
+cas_toolchain(
+    name = "python_cas",
+    digest = "9001ee63c60ed48ff919cafc7523629012bfcb1eec8b97898fe44c801bafb376:480",
+    use_case = "buck2-default",
+    visibility = ["PUBLIC"],
+)

@@ -1,0 +1,56 @@
+# The DEFAULT TOOLCHAIN INSTANCES — wired to the cells snapshot (../cells) and
+# baked into the buck2 binary as prelude//toolchains. Every rule's `toolchain`
+# attr DEFAULTS here (Gate B), so a bare BUCK file builds with zero wiring; an
+# explicit `toolchain =` or a project-defined instance always wins.
+
+# DEFAULT C/C++ = STATIC-MUSL clang-22: static ELF compiler, statically-linked
+# output, no §12 floor loader anywhere. For pure-source C++.
+cxx_toolchain(
+    name = "cxx",
+    sysroot = "prelude//cells:cxx_cas",
+    clang_version = "22",
+    visibility = ["PUBLIC"],
+)
+
+# glibc clang-22: for C++ that links external glibc .so's (prebuilt libraries,
+# cudart) or ABI-matches the glibc rust cc — musl can't link a glibc .so.
+cxx_toolchain(
+    name = "cxx_glibc",
+    sysroot = "prelude//cells:cc_cas",
+    clang_version = "22",
+    visibility = ["PUBLIC"],
+)
+
+# Rust: the rustc cell + the glibc cc cell as C/link driver. Action-time tools
+# already default to the binary-embedded set (Gate A).
+rust_toolchain(
+    name = "rust",
+    rust = "prelude//cells:rust_cas",
+    cc = "prelude//cells:cc_cas",
+    visibility = ["PUBLIC"],
+)
+
+# Haskell: the ghc cell (cc + RTS libs grafted in; settings $topdir-relative).
+haskell_toolchain(
+    name = "haskell",
+    ghc = "prelude//cells:ghc_cas",
+    visibility = ["PUBLIC"],
+)
+
+# Lean 4: the lean cell + the glibc cc cell (-lleanshared -lstdc++ ...).
+lean_toolchain(
+    name = "lean",
+    lean = "prelude//cells:lean_cas",
+    cc = "prelude//cells:cc_cas",
+    visibility = ["PUBLIC"],
+)
+
+# CUDA: clang-22 NVPTX (the glibc cxx — the host link takes cudart, a glibc
+# .so) ⊕ the CUDA 13.3 toolkit cell. sm_120 = Blackwell.
+nv_toolchain(
+    name = "nv",
+    cxx = ":cxx_glibc",
+    cuda = "prelude//cells:nv_cas",
+    gpu_arch = "sm_120",
+    visibility = ["PUBLIC"],
+)

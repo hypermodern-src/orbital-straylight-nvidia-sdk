@@ -1,0 +1,9 @@
+# @generated — the action-time tools baked into this buck2 binary.
+# `directory` exposes the tracked root/ (bin/<tool>) as ONE artifact —
+# DefaultInfo shape the toolchain rules' `tools` component expects; their
+# attr default points here (prelude//tools:prelude-tools).
+directory(
+name = "prelude-tools",
+srcs = ["root"],
+visibility = ["PUBLIC"],
+)
