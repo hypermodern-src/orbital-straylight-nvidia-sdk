@@ -12,7 +12,7 @@ support, and headless server capabilities.
 
 **Key Features:**
 
-- ✅ Complete CUDA 13.1 SDK (toolkit, cuDNN, NCCL, TensorRT, etc.)
+- ✅ Complete CUDA 13.3.1 SDK (toolkit, cuDNN, NCCL, TensorRT, etc.)
 - ✅ NixOS module with automatic driver management
 - ✅ Container runtime support (Docker/Podman GPU access via CDI)
 - ✅ nvidia-persistenced for headless/server reliability
@@ -63,7 +63,7 @@ support, and headless server capabilities.
 
 ### CUDA SDK Components
 
-| Package | Version | Source | |---------|---------|--------| | **CUDA Toolkit** | 13.1 | NVIDIA
+| Package | Version | Source | |---------|---------|--------| | **CUDA Toolkit** | 13.3.1 | NVIDIA
 installer | | **cuDNN** | 9.17.0.29 | NVIDIA redistrib | | **NCCL** | 2.28.9 | NGC container | |
 **TensorRT** | 10.15.1.29 | NVIDIA redistrib | | **cuTensor** | 2.4.1.4 | NVIDIA redistrib | |
 **CUTLASS** | 4.3.3 | GitHub | | **Triton Server** | 25.12 | NGC container |
@@ -86,7 +86,7 @@ hardware.nvidia-sdk = {
 **Driver Compatibility:**
 
 - Drivers are backward compatible
-- CUDA 13.1 requires driver ≥ 590.44.01
+- CUDA 13.3.1 requires driver ≥ 590.44.01
 - Works with: 590.44.01, any 590.x+
 
 #### 2. NVIDIA Persistenced (Enabled by Default)
@@ -160,10 +160,10 @@ globally.
 
 ### Compatibility Matrix
 
-CUDA 13.1 works with any driver ≥ 590.44.01:
+CUDA 13.3.1 works with any driver ≥ 590.44.01:
 
 | Driver Version | Release Date | Status | |----------------|--------------|--------| | 590.44.01 |
-Jan 2026 | Minimum for CUDA 13.1 | | 590.54.01 | Feb 2026 | ✅ Recommended | | 590.65.01 | Mar 2026 |
+Jan 2026 | Minimum for CUDA 13.3.1 | | 590.54.01 | Feb 2026 | ✅ Recommended | | 590.65.01 | Mar 2026 |
 ✅ Latest stable |
 
 ### Checking Your Driver
@@ -485,5 +485,5 @@ ______________________________________________________________________
 
 - 4x NVIDIA RTX PRO 6000 (Ampere)
 - NVIDIA driver 590.44.01 (open kernel module)
-- CUDA 13.1
+- CUDA 13.3.1
 - NixOS unstable (2026-02)
