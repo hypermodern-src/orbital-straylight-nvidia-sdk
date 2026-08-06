@@ -22,3 +22,6 @@ llvm-git
 .nil.toml
 .direnv
 .devshell
+
+# spoke-book build dir (doc/ is its own buck2 project)
+doc/buck-out/
