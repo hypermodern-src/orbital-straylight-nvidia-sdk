@@ -103,6 +103,26 @@
         "type": "github"
       }
     },
+    "modern-nix": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1786061655,
+        "narHash": "sha256-DnTo7XG5L9e3DilgK0pXjE0/swQW4paw/ZHcOOYUz4Y=",
+        "ref": "refs/heads/main",
+        "rev": "a4848cc903bfbf901bb0c8e951acd7331de52883",
+        "revCount": 4,
+        "type": "git",
+        "url": "file:///home/b7r6/src/straylight/modern.nix"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/b7r6/src/straylight/modern.nix"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1782764868,
@@ -123,6 +143,7 @@
         "agenix": "agenix",
         "flake-parts": "flake-parts",
         "llvm-project": "llvm-project",
+        "modern-nix": "modern-nix",
         "nixpkgs": "nixpkgs",
         "systems": "systems_2",
         "treefmt-nix": "treefmt-nix"

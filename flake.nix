@@ -40,5 +40,15 @@
 
     treefmt-nix.url = "github:numtide/treefmt-nix";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # modern.nix — the dependency-free bootstrap layer. This repo's own
+    # nix/modern.nix charter module (mk-runpath/patch-elf/verify-closure/
+    # extract/container-to-nix) moved there (MODERN-d); we consume it as
+    # overlays.default instead of carrying a copy. modern.nix's inputs are
+    # nixpkgs-only (sealed) — no cycle.
+    # TODO: repoint at ssh://git@git.s4.gl/straylight/modern.nix.git once the
+    # remote repo exists.
+    modern-nix.url = "git+file:///home/b7r6/src/straylight/modern.nix";
+    modern-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 }

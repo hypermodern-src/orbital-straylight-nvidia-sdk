@@ -50,7 +50,8 @@
       # MODERN PRIMITIVES
       # ════════════════════════════════════════════════════════════════════
 
-      inherit ((import ../modern.nix pkgs pkgs)) modern;
+      # the modern primitives now live in the modern.nix bootstrap repo
+      inherit ((inputs.modern-nix.overlays.default pkgs pkgs)) modern;
 
       # ════════════════════════════════════════════════════════════════════
       # CUDA COMPONENTS
@@ -576,7 +577,7 @@
       final: prev:
       let
         versions = import ../versions.nix;
-        inherit ((import ../modern.nix final prev)) modern;
+        inherit ((inputs.modern-nix.overlays.default final prev)) modern;
 
         inherit (final) lib stdenv;
         platform = import ../lib/platform.nix {
