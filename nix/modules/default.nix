@@ -144,6 +144,14 @@
         backend = "trtllm";
       };
 
+      # Native TensorRT-LLM path without the unrelated vLLM container closure.
+      # This is the base for K3 expert paging and the Triton OpenAI frontend.
+      tritonserver-trtllm = pkgs.callPackage ../pkgs/tritonserver.nix {
+        inherit versions modern nvidia-sdk;
+        containerSrc = ngcContainer;
+        backend = "trtllm";
+      };
+
       # ════════════════════════════════════════════════════════════════════
       # PYTHON 3.12 — NGC environments (two variants due to torch incompatibility)
       # ════════════════════════════════════════════════════════════════════
@@ -216,6 +224,7 @@
           cutlass
           cuda-merged
           tritonserver
+          tritonserver-trtllm
           python
           python-trtllm
           python-vllm
@@ -478,6 +487,40 @@
               echo "Python imports: ok" > $out
             '';
 
+        # ── TensorRT-LLM/Triton OpenAI surface ──────────────────────
+        # This intentionally uses the TRT-LLM-only closure. It proves the NGC
+        # LLMAPI repository template and frontend wrapper survive extraction
+        # and patching without importing the unrelated vLLM image.
+        triton-trtllm-structure =
+          pkgs.runCommand "check-triton-trtllm-structure" { nativeBuildInputs = [ pkgs.gnugrep ]; }
+            ''
+              root=${tritonserver-trtllm}
+              test -x "$root/bin/tritonserver"
+              test -x "$root/bin/triton-openai"
+              test ! -d "$root/backends/vllm"
+              test -f "$root/python/openai/types/__init__.py"
+              test -e "$root/lib/libnvshmem_host.so.3"
+              grep -F 'LD_PRELOAD' "$root/bin/triton-openai" >/dev/null
+              ! grep -F 'LD_LIBRARY_PATH' "$root/bin/triton-openai"
+              grep -F "$root/backends" "$root/python/tritonserver/_api/_server.py" >/dev/null
+              ! grep -F '/opt/tritonserver' "$root/python/tritonserver/_api/_server.py"
+              test "$(grep -c -F 'include_usage = True' \
+                "$root/python/openai/openai_frontend/engine/triton_engine.py")" -eq 2
+              ! grep -F 'include_usage = request.stream_options' \
+                "$root/python/openai/openai_frontend/engine/triton_engine.py"
+              test -f "$root/share/tritonserver/model-repositories/llmapi/tensorrt_llm/config.pbtxt"
+              test -f "$root/share/tritonserver/model-repositories/llmapi/tensorrt_llm/1/model.py"
+              test -f "$root/share/tritonserver/model-repositories/llmapi/tensorrt_llm/1/model.yaml"
+              grep -F 'backend: "python"' \
+                "$root/share/tritonserver/model-repositories/llmapi/tensorrt_llm/config.pbtxt" >/dev/null
+              "$root/bin/triton-openai" --help >help.txt
+              grep -F -- '--openai-port' help.txt >/dev/null
+
+              mkdir -p "$out"
+              cp help.txt "$out/"
+              printf '%s\n' ${lib.escapeShellArg versions.triton-trtllm-container.version} >"$out/triton-version"
+            '';
+
         # ── Ignore-list sync ──────────────────────────────────────────
         # Ensures autoPatchelfIgnoreMissingDeps and verify-closure ignore
         # lists are in sync across all packages. Without this, a library
@@ -503,6 +546,12 @@
           type = "app";
           program = "${tritonserver}/bin/tritonserver";
           meta.description = "NVIDIA Triton Inference Server";
+        };
+
+        triton-openai = {
+          type = "app";
+          program = "${tritonserver-trtllm}/bin/triton-openai";
+          meta.description = "Triton with the OpenAI-compatible frontend";
         };
 
         # TensorRT-LLM CLI tools

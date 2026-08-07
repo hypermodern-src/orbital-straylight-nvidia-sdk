@@ -3,7 +3,11 @@
 # Provides a consistent interface for building all NVIDIA SDK packages
 # with proper dependency management, ELF patching, and metadata.
 
-{ lib, fetchurl, fetchFromGitHub }:
+{
+  lib,
+  fetchurl,
+  fetchFromGitHub,
+}:
 
 {
   # Main package builder function

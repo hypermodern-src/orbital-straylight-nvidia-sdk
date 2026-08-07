@@ -51,30 +51,20 @@ let
   ];
 
   # Qt6 from nsight — not bundled
-  qt6 = [
-    "libQt6*.so*"
-  ];
+  qt6 = [ "libQt6*.so*" ];
 
   # CUDA version mismatches (nsight ships CUDA 12, SDK has 13)
-  cudaVersionMismatch = [
-    "libcudart.so.12*"
-  ];
+  cudaVersionMismatch = [ "libcudart.so.12*" ];
 
   # Python shared lib (provided by nixpkgs)
-  pythonLib = [
-    "libpython312.so*"
-  ];
+  pythonLib = [ "libpython312.so*" ];
 
   # glibc extensions (optional)
-  glibcExtensions = [
-    "libmvec.so.1"
-  ];
+  glibcExtensions = [ "libmvec.so.1" ];
 
   # OpenMP runtime — use toolchain's libgomp, not container's
   # (avoids verify-closure ABI-shadow warnings for numba/omppool)
-  openmpRuntime = [
-    "libgomp.so*"
-  ];
+  openmpRuntime = [ "libgomp.so*" ];
 
   # OpenCV ffmpeg libs — bundled with opencv-python, not needed if not using video
   opencvFfmpeg = [
@@ -85,9 +75,7 @@ let
   ];
 
   # NVSHMEM — optional distributed memory library
-  nvshmem = [
-    "libnvshmem*.so*"
-  ];
+  nvshmem = [ "libnvshmem*.so*" ];
 
   # DPDK/DOCA networking — optional high-performance networking
   dpdkDoca = [

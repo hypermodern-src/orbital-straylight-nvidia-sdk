@@ -3,9 +3,8 @@
 Production-grade NVIDIA CUDA SDK for NixOS with complete driver integration, container runtime
 support, and headless server capabilities.
 
-> Part of the straylight build — this repo's book (the SDK, the nv cell)
-> lives in [`doc/`](doc/) (`cd doc && buck2 build //:book`); the cross-repo
-> hub book is
+> Part of the straylight build — this repo's book (the SDK, the nv cell) lives in [`doc/`](doc/)
+> (`cd doc && buck2 build //:book`); the cross-repo hub book is
 > [`straylight-mdbook`](https://git.s4.gl/straylight/straylight-mdbook).
 
 **📚 [Complete Documentation Index](DOCS.md)**
@@ -16,8 +15,9 @@ support, and headless server capabilities.
 - ✅ NixOS module with automatic driver management
 - ✅ Container runtime support (Docker/Podman GPU access via CDI)
 - ✅ nvidia-persistenced for headless/server reliability
-- ✅ Driver 590.x series support with backward compatibility
+- ✅ Matched 610.43.02 driver with backward compatibility
 - ✅ x86_64-linux and aarch64-linux support
+- ✅ Slim Triton + TensorRT-LLM package with an OpenAI-compatible frontend
 
 ## Quick Start
 
@@ -63,10 +63,23 @@ support, and headless server capabilities.
 
 ### CUDA SDK Components
 
-| Package | Version | Source | |---------|---------|--------| | **CUDA Toolkit** | 13.3.1 | NVIDIA
-installer | | **cuDNN** | 9.17.0.29 | NVIDIA redistrib | | **NCCL** | 2.28.9 | NGC container | |
-**TensorRT** | 10.15.1.29 | NVIDIA redistrib | | **cuTensor** | 2.4.1.4 | NVIDIA redistrib | |
-**CUTLASS** | 4.3.3 | GitHub | | **Triton Server** | 25.12 | NGC container |
+| Package | Version | Source | | --- | --- | --- | | **CUDA Toolkit** | 13.3.1 | NVIDIA installer |
+| **cuDNN** | 9.25.0.15 | NVIDIA redistrib | | **NCCL** | 2.30.7 | NVIDIA redistrib | | **TensorRT**
+| 10.15.1.29 | NVIDIA redistrib | | **cuTensor** | 2.7.0.5 | NVIDIA redistrib | | **CUTLASS** |
+4.6.1 | GitHub | | **Triton Server / TensorRT-LLM** | 26.06 / 1.2.1 | NGC container |
+
+The TensorRT-LLM-only Triton closure and its in-process OpenAI frontend are available without
+pulling the vLLM image:
+
+```bash
+triton_root="$(nix build --no-link --print-out-paths .#tritonserver-trtllm)"
+nix run .#triton-openai -- \
+  --model-repository "$triton_root/share/tritonserver/model-repositories/llmapi" \
+  --openai-port 8000
+```
+
+The package installs the upstream repository template under
+`share/tritonserver/model-repositories/llmapi`.
 
 ### NixOS Module Features
 
@@ -160,11 +173,12 @@ globally.
 
 ### Compatibility Matrix
 
-CUDA 13.3.1 pairs with driver 610.43.02 (see nix/versions.nix); the 590-series table below is the prior 13.1-era guidance:
+CUDA 13.3.1 pairs with driver 610.43.02 (see nix/versions.nix); the 590-series table below is the
+prior 13.1-era guidance:
 
 | Driver Version | Release Date | Status | |----------------|--------------|--------| | 590.44.01 |
-Jan 2026 | Minimum for CUDA 13.3.1 | | 590.54.01 | Feb 2026 | ✅ Recommended | | 590.65.01 | Mar 2026 |
-✅ Latest stable |
+Jan 2026 | Minimum for CUDA 13.3.1 | | 590.54.01 | Feb 2026 | ✅ Recommended | | 590.65.01 | Mar 2026
+| ✅ Latest stable |
 
 ### Checking Your Driver
 

@@ -17,7 +17,7 @@ stdenv.mkDerivation {
   src = fetchurl {
     # Live NVIDIA upstream redistributable (CUDA 13 .txz).
     url = srcInfo.urls.upstream;
-    hash = srcInfo.hash;
+    inherit (srcInfo) hash;
   };
 
   nativeBuildInputs = [ autoPatchelfHook ];

@@ -22,7 +22,6 @@
 # source needs the .03 userspace runfile (a coordinated versions.nix bump), not
 # just a source swap. Until then this stays null = stock 610.43.02 open modules.
 {
-  lib,
   versions,
   nvidiaPackages,
   # override: a prepared open-gpu-kernel-modules source (fork) + its version
@@ -32,7 +31,7 @@ let
   d = versions.driver;
 
   base = nvidiaPackages.mkDriver {
-    version = d.version;
+    inherit (d) version;
     sha256_64bit = d.x86_64-linux.hash;
     sha256_aarch64 = d.aarch64-linux.hash;
     openSha256 = d.openHash;
@@ -47,7 +46,9 @@ let
     else
       base.overrideAttrs (old: {
         passthru = (old.passthru or { }) // {
-          open = (old.passthru.open or { }).overrideAttrs (_: { src = openSource; });
+          open = (old.passthru.open or { }).overrideAttrs (_: {
+            src = openSource;
+          });
         };
       });
 in

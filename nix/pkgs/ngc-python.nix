@@ -12,6 +12,7 @@
   addDriverRunpath,
   python312,
   autoPatchelfHook,
+  patchelf,
   findutils,
   containerSrc,
   nvidia-sdk,
@@ -37,6 +38,7 @@ let
     nativeBuildInputs = [
       addDriverRunpath
       autoPatchelfHook
+      patchelf
       findutils
     ];
 
@@ -128,7 +130,11 @@ let
       # (use nixpkgs OpenSSL to match Python's _ssl module), and driver libs
       # (libcuda/libnvidia-* must come from /run/opengl-driver/lib at runtime).
       echo "Dumping container libraries to $out/lib ..."
-      find $src -name "lib*.so*" \( -type f -o -type l \) \
+      # Copy regular files first. Copying symlinks and regular files in a single
+      # no-clobber pass is traversal-order dependent: a SONAME symlink can win
+      # the basename, then become dangling when its versioned target had a
+      # different source basename. Rebuild SONAME links from ELF metadata below.
+      find $src -name "lib*.so*" -type f \
         -not -name "libc.so*" \
         -not -name "libm.so*" \
         -not -name "libpthread.so*" \
@@ -146,6 +152,18 @@ let
         -not -name "libcuda.so*" \
         -not -name "libnvidia-*.so*" \
         -exec cp -an {} $out/lib/ \; 2>/dev/null || true
+
+      # Python extensions record SONAMEs such as libnvshmem_host.so.3, while
+      # NGC may only leave the fully-versioned regular file after extraction.
+      # Reconstruct those links deterministically before closure verification.
+      for library in $out/lib/lib*.so*; do
+        [ -f "$library" ] || continue
+        soname=$(patchelf --print-soname "$library" 2>/dev/null || true)
+        [ -n "$soname" ] || continue
+        if [ ! -e "$out/lib/$soname" ]; then
+          ln -s "$(basename "$library")" "$out/lib/$soname"
+        fi
+      done
 
       # ── OpenMPI share tree (help texts, etc.) ────────────────────────
       if [ -d "$src/opt/hpcx/ompi" ]; then
@@ -240,21 +258,27 @@ let
   };
 
   # CLI tools based on variant
-  cliTools = if variant == "trtllm" then ''
-    # TRT-LLM CLI tools
-    for cmd in bench build eval prune refit serve; do
-      makeWrapper $out/bin/python3 $out/bin/trtllm-$cmd \
-        --add-flags "-c 'from tensorrt_llm.commands.$cmd import main; main()'"
-    done
-  '' else ''
-    # vLLM CLI
-    makeWrapper $out/bin/python3 $out/bin/vllm \
-      --add-flags "-m vllm.entrypoints.openai.api_server"
-  '';
+  cliTools =
+    if variant == "trtllm" then
+      ''
+        # TRT-LLM CLI tools
+        for cmd in bench build eval prune refit serve; do
+          makeWrapper $out/bin/python3 $out/bin/trtllm-$cmd \
+            --add-flags "-c 'from tensorrt_llm.commands.$cmd import main; main()'"
+        done
+      ''
+    else
+      ''
+        # vLLM CLI
+        makeWrapper $out/bin/python3 $out/bin/vllm \
+          --add-flags "-m vllm.entrypoints.openai.api_server"
+      '';
 
-  description = if variant == "trtllm"
-    then "Python ${python.version} with TensorRT-LLM (torch 2.10)"
-    else "Python ${python.version} with vLLM (torch 2.13)";
+  description =
+    if variant == "trtllm" then
+      "Python ${python.version} with TensorRT-LLM (torch 2.10)"
+    else
+      "Python ${python.version} with vLLM (torch 2.13)";
 
 in
 stdenv.mkDerivation {
