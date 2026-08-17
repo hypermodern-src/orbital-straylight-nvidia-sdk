@@ -528,6 +528,7 @@
                 --entry-glob 'opt/venv-tritonserver/lib/python3.12/site-packages/*.abi3.so' \
                 > "$out/edges.plan"
 
+              elf-replay ${ngcContainer} "$out/edges.plan"
               edges=$(wc -l < "$out/edges.plan")
               test "$edges" -gt 1000
               sha256sum "$out/edges.plan" > "$out/receipt.sha256"
@@ -575,6 +576,7 @@
                 --entry-glob 'usr/local/lib/python3.12/dist-packages/*.abi3.so' \
                 > "$out/edges.plan"
 
+              elf-replay ${vllmContainer} "$out/edges.plan"
               edges=$(wc -l < "$out/edges.plan")
               test "$edges" -gt 1000
               sha256sum "$out/edges.plan" > "$out/receipt.sha256"

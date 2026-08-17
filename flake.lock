@@ -110,11 +110,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786998728,
-        "narHash": "sha256-MzJXMKnvHVX76TkLSnL4MbVRPn7rxwOZHGthAvHwr+0=",
+        "lastModified": 1787002529,
+        "narHash": "sha256-Hnv50Zncimaw4JaYUCdjbYriovx/GXqp1K7Xq4ICfvg=",
         "ref": "refs/heads/main",
-        "rev": "377c5b7f03dd3444a6e94ead8022a34868eeb707",
-        "revCount": 8,
+        "rev": "75995925b150656997beb60343019afc5464c0da",
+        "revCount": 10,
         "type": "git",
         "url": "ssh://git@git.s4.gl/straylight/modern.nix.git"
       },
