@@ -346,35 +346,48 @@ HD float3 eyesColor(float2 uv, const FieldParams& P) {
     float speed = 0.055f + 0.035f * hashf(f2(fi, 8.8f));
     float ph = fractf(t * speed + fi * 0.37f);
     float pass = floorf(t * speed + fi * 0.37f) + fi * 91.f;   // lane seed
-    float lane = 0.30f + 0.45f * hashf(f2(pass, 1.5f));
     float thick = 9000.f + 26000.f * hashf(f2(pass, 3.3f));
-    float head = mixf(-0.35f, 1.45f, ph);
-    float dy = uv.y - lane;
-    float behind = head - uv.x;
+    // the blade frame: every pass rises left→right at its own angle (the
+    // reel's diagonals), in aspect-true coords so the angle is geometric.
+    // s runs along the blade, n across it; the lane offsets n.
+    float ang = -(0.10f + 0.32f * hashf(f2(pass, 7.2f)));
+    float ca = cosf(ang), sa = sinf(ang);
+    float s = p.x * ca + p.y * sa;
+    float n = -p.x * sa + p.y * ca;
+    float o = 0.30f + 0.45f * hashf(f2(pass, 1.5f)) - 0.5f;
+    float span = P.aspect * 0.62f + 0.30f;
+    float head = mixf(-span, span, ph);
+    float behind = head - s;
     // smooth onset at the head — a hard step leaves a vertical seam in the glow
     float tail = smoothstepf(0.f, 0.06f, behind) * expf(-behind * (1.1f + 1.4f * hashf(f2(pass, 5.f))));
-    float prof = expf(-thick * dy * dy);
-    float glow = expf(-700.f * dy * dy);
-    float bulge = expf(-(behind * behind * 2600.f + dy * dy * 12000.f));
-    // night: white-hot at the head, cooling to accent down the tail;
-    // day: the blade BURNS on the paper — you can't add light to white, so
-    // heat is saturation: the core stains hard to the accent pigment, the
-    // glow is a pale colored halo, the head goes deepest
-    float3 beamCol = mix3(P.accentD, hot, tail);
     float fb = flick * blaze;
-    col = C.mark(col, tail * prof, beamCol, 1.60f * fb, 0.30f * fb, 1.15f * fb);
-    col = C.mark(col, tail * glow, P.accentD, 0.45f * fb, 0.05f * fb, 0.30f * fb);
-    col = C.mark(col, bulge, hot, 0.85f * fb, 0.45f * fb, 1.25f * fb);
-    // day only: plasma on paper is a three-zone burn — a WIDE saturated
-    // sheath (emitGain 0 keeps night untouched), and inside it the
-    // overexposed filament: a blown-out white core carved back out of the
-    // stain, the way a laser photographs on white. The filament inside the
-    // sheath is what makes the stroke read as plasma, not ink.
-    float sheath = expf(-thick * 0.22f * dy * dy) * tail;
-    col = C.mark(col, sheath, P.accentD, 0.f, 0.02f * fb, 0.55f * fb);
-    float fil = expf(-thick * 7.f * dy * dy) * tail;
-    float filB = expf(-(behind * behind * 2600.f + dy * dy * 44000.f));
-    col = mix3(col, white, C.day * clamp01(1.15f * fb * (fil + filB)));
+    // each blade travels as a PAIR — the bright lead and a dimmer twin
+    // riding parallel just below, the reel's double-streak signature
+    for (int k = 0; k < 2; k++) {
+      float w = k ? 0.62f : 1.f;
+      float dy = n - o - (float)k * 0.026f;
+      float prof = expf(-thick * dy * dy);
+      float glow = expf(-700.f * dy * dy);
+      float bulge = expf(-(behind * behind * 2600.f + dy * dy * 12000.f));
+      // night: white-hot at the head, cooling to accent down the tail;
+      // day: the blade BURNS on the paper — you can't add light to white,
+      // so heat is saturation: the core stains hard to the accent pigment,
+      // the glow is a pale colored halo, the head goes deepest
+      float3 beamCol = mix3(P.accentD, hot, tail);
+      col = C.mark(col, w * tail * prof, beamCol, 1.60f * fb, 0.30f * fb, 1.15f * fb);
+      col = C.mark(col, w * tail * glow, P.accentD, 0.45f * fb, 0.05f * fb, 0.30f * fb);
+      col = C.mark(col, w * bulge, hot, 0.85f * fb, 0.45f * fb, 1.25f * fb);
+      // day only: plasma on paper is a three-zone burn — a WIDE saturated
+      // sheath (emitGain 0 keeps night untouched), and inside it the
+      // overexposed filament: a blown-out white core carved back out of
+      // the stain, the way a laser photographs on white. The filament
+      // inside the sheath is what makes the stroke read as plasma, not ink.
+      float sheath = expf(-thick * 0.22f * dy * dy) * tail;
+      col = C.mark(col, w * sheath, P.accentD, 0.f, 0.02f * fb, 0.55f * fb);
+      float fil = expf(-thick * 7.f * dy * dy) * tail;
+      float filB = expf(-(behind * behind * 2600.f + dy * dy * 44000.f));
+      col = mix3(col, white, C.day * clamp01(w * 1.15f * fb * (fil + filB)));
+    }
   }
 
   // ── the word: the CASK6 lingo, one big title card at a time ─────────────
