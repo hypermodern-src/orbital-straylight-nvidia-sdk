@@ -301,7 +301,8 @@ struct CornerInk {
                  float emitGain, float inkGain, float stainGain = 0.f) const {
     col = col + emitTint * (night * emitGain * mask);
     col = col - f3(1.f, 1.f, 1.f) * (day * inkGain * mask);
-    if (stainGain > 0.f) col = mix3(col, pigment, day * stainGain * mask);
+    // clamp: a hot mask must saturate AT the pigment, never extrapolate past
+    if (stainGain > 0.f) col = mix3(col, pigment, clamp01(day * stainGain * mask));
     return col;
   }
 };
@@ -356,12 +357,14 @@ HD float3 eyesColor(float2 uv, const FieldParams& P) {
     float glow = expf(-700.f * dy * dy);
     float bulge = expf(-(behind * behind * 2600.f + dy * dy * 12000.f));
     // night: white-hot at the head, cooling to accent down the tail;
-    // day: an ink trail, densest at the head, stained toward the accent
+    // day: the blade BURNS on the paper — you can't add light to white, so
+    // heat is saturation: the core stains hard to the accent pigment, the
+    // glow is a pale colored halo, the head goes deepest
     float3 beamCol = mix3(P.accentD, hot, tail);
     float fb = flick * blaze;
-    col = C.mark(col, tail * prof, beamCol, 1.60f * fb, 0.32f * fb, 0.30f * fb);
-    col = C.mark(col, tail * glow, P.accentD, 0.45f * fb, 0.08f * fb);
-    col = C.mark(col, bulge, hot, 0.85f * fb, 0.38f * fb);
+    col = C.mark(col, tail * prof, beamCol, 1.60f * fb, 0.30f * fb, 1.15f * fb);
+    col = C.mark(col, tail * glow, P.accentD, 0.45f * fb, 0.05f * fb, 0.30f * fb);
+    col = C.mark(col, bulge, hot, 0.85f * fb, 0.45f * fb, 1.25f * fb);
   }
 
   // ── the word: the CASK6 lingo, one big title card at a time ─────────────
