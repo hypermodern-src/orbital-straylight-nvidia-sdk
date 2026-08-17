@@ -110,17 +110,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1786061655,
-        "narHash": "sha256-DnTo7XG5L9e3DilgK0pXjE0/swQW4paw/ZHcOOYUz4Y=",
+        "lastModified": 1786998728,
+        "narHash": "sha256-MzJXMKnvHVX76TkLSnL4MbVRPn7rxwOZHGthAvHwr+0=",
         "ref": "refs/heads/main",
-        "rev": "a4848cc903bfbf901bb0c8e951acd7331de52883",
-        "revCount": 4,
+        "rev": "377c5b7f03dd3444a6e94ead8022a34868eeb707",
+        "revCount": 8,
         "type": "git",
-        "url": "file:///home/b7r6/src/straylight/modern.nix"
+        "url": "ssh://git@git.s4.gl/straylight/modern.nix.git"
       },
       "original": {
         "type": "git",
-        "url": "file:///home/b7r6/src/straylight/modern.nix"
+        "url": "ssh://git@git.s4.gl/straylight/modern.nix.git"
       }
     },
     "nixpkgs": {

@@ -52,6 +52,7 @@
 
       # the modern primitives now live in the modern.nix bootstrap repo
       inherit ((inputs.modern-nix.overlays.default pkgs pkgs)) modern;
+      modern-elf-suite = if stdenv.isLinux then inputs.modern-nix.packages.${system}.elf-suite else null;
 
       # ════════════════════════════════════════════════════════════════════
       # CUDA COMPONENTS
@@ -139,9 +140,8 @@
       };
 
       tritonserver = pkgs.callPackage ../pkgs/tritonserver.nix {
-        inherit versions modern nvidia-sdk;
+        inherit versions;
         containerSrc = ngcContainer;
-        vllmContainerSrc = vllmContainer;
         backend = "trtllm";
       };
 
@@ -158,13 +158,11 @@
 
       python-trtllm = pkgs.callPackage ../pkgs/ngc-python.nix {
         containerSrc = ngcContainer;
-        inherit nvidia-sdk modern;
         variant = "trtllm";
       };
 
       python-vllm = pkgs.callPackage ../pkgs/ngc-python.nix {
         containerSrc = vllmContainer;
-        inherit nvidia-sdk modern;
         variant = "vllm";
       };
 
@@ -461,41 +459,126 @@
         '';
 
         # ── Python imports (NGC packages) ─────────────────────────────
-        python-imports =
-          pkgs.runCommand "check-python-imports"
-            {
-              nativeBuildInputs = [ python ];
-              LD_LIBRARY_PATH = "${nvidia-sdk}/lib64";
-            }
-            ''
-              export HOME=$(mktemp -d)
-              ${python}/bin/python3 -c "
-              import sys
-              print('Python:', sys.version)
-              import numpy; print('numpy:', numpy.__version__)
-              import torch; print('torch:', torch.__version__)
-              print('CUDA available:', torch.cuda.is_available())
-              "
-              echo "Python imports: ok" > $out
-            '';
+        python-imports = pkgs.runCommand "check-python-imports" { nativeBuildInputs = [ python ]; } ''
+          export HOME=$(mktemp -d)
+          ${python}/bin/python3 -c "
+          import sys
+          print('Python:', sys.version)
+          import numpy; print('numpy:', numpy.__version__)
+          import torch; print('torch:', torch.__version__)
+          import scipy.sparse.linalg._svdp; print('scipy propack: package provider')
+          import ctypes
+          ctypes.CDLL('/opt/venv-tritonserver/lib/python3.12/site-packages/tensorrt_llm/bindings.cpython-312-x86_64-linux-gnu.so')
+          print('TensorRT-LLM bindings: ELF loaded')
+          print('CUDA available:', torch.cuda.is_available())
+          "
+          echo "Python imports: ok" > $out
+        '';
 
-        # ── Ignore-list sync ──────────────────────────────────────────
-        # Ensures autoPatchelfIgnoreMissingDeps and verify-closure ignore
-        # lists are in sync across all packages. Without this, a library
-        # ignored by autoPatchelf but not by verify-closure will cause a
-        # MODE2 dangling failure at build time (discovered too late).
-        ignore-sync =
-          pkgs.runCommand "check-ignore-sync"
+        # ── NGC extraction policy ─────────────────────────────────────
+        # The image path must never regress to flattening or heuristic ELF
+        # mutation. Resolution is proved by ngc-loader-plan below.
+        ngc-no-rewrite = pkgs.runCommand "check-ngc-no-rewrite" { nativeBuildInputs = [ pkgs.gnugrep ]; } ''
+          if grep -E 'autoPatchelf|patchelf|addDriverRunpath|cp -an|find .*\\.so' \
+            ${../pkgs/ngc-python.nix} ${../pkgs/tritonserver.nix}; then
+            echo 'NGC runtime contains forbidden ELF reconstruction' >&2
+            exit 1
+          fi
+          echo "ok: NGC rootfs is topology-preserving" > $out
+        '';
+      }
+      // lib.optionalAttrs stdenv.isLinux {
+        triton-cli = pkgs.runCommand "check-triton-cli" { nativeBuildInputs = [ tritonserver ]; } ''
+          ${tritonserver}/bin/tritonserver --help > help.txt 2>&1 || true
+          grep -q -- '--backend-directory' help.txt
+          echo "ok: Triton executable and loader closure start" > $out
+        '';
+
+        # The native product closure of the unmodified NGC rootfs. This is the
+        # replacement gate for flatten+autoPatchelf: preserve vendor topology,
+        # normalize the image's loader cache into inert data, and require every
+        # Triton/Python extension edge to resolve from its own loader context.
+        ngc-loader-plan =
+          pkgs.runCommand "ngc-${versions.ngc.version}-loader-plan"
             {
               nativeBuildInputs = [
-                pkgs.bash
-                pkgs.gnused
-                pkgs.gnugrep
+                modern-elf-suite
+                pkgs.glibc.bin
+                pkgs.gawk
               ];
             }
             ''
-              ${pkgs.bash}/bin/sh ${../scripts/check-ignore-sync.sh} "${./.}"
-              echo "ok: ignore lists in sync" > $out
+              mkdir -p "$out"
+              ldconfig -p -C ${ngcContainer}/etc/ld.so.cache \
+                | awk '/^[[:space:]]*[^[:space:]]+[[:space:]].* => \/[^[:space:]]+$/ {print $1, $NF}' \
+                > "$out/ld.so.cache.plan"
+
+              elf-resolve ${ngcContainer} \
+                --library-path /usr/local/tensorrt/lib \
+                --library-path /usr/local/cuda/compat/lib \
+                --library-path /usr/local/nvidia/lib \
+                --library-path /usr/local/nvidia/lib64 \
+                --cache-plan "$out/ld.so.cache.plan" \
+                --host libcuda.so.1 \
+                --host libnvidia-ml.so.1 \
+                --entry /opt/tritonserver/bin/tritonserver \
+                --entry /opt/venv-tritonserver/bin/python3 \
+                --entry-glob 'opt/tritonserver/backends/*/libtriton_*.so' \
+                --entry-glob 'opt/venv-tritonserver/lib/python3.12/site-packages/*.cpython-*.so' \
+                --entry-glob 'opt/venv-tritonserver/lib/python3.12/site-packages/*.abi3.so' \
+                > "$out/edges.plan"
+
+              edges=$(wc -l < "$out/edges.plan")
+              test "$edges" -gt 1000
+              sha256sum "$out/edges.plan" > "$out/receipt.sha256"
+              echo "NGC loader plan: $edges resolved edges"
+            '';
+
+        vllm-loader-plan =
+          pkgs.runCommand "vllm-${versions.ngc.version}-loader-plan"
+            {
+              nativeBuildInputs = [
+                modern-elf-suite
+                pkgs.glibc.bin
+                pkgs.gawk
+              ];
+            }
+            ''
+              mkdir -p "$out"
+              ldconfig -p -C ${vllmContainer}/etc/ld.so.cache \
+                | awk '/^[[:space:]]*[^[:space:]]+[[:space:]].* => \/[^[:space:]]+$/ {print $1, $NF}' \
+                > "$out/ld.so.cache.plan"
+
+              elf-resolve ${vllmContainer} \
+                --library-path /opt/tritonserver/lib \
+                --library-path /opt/ffmpeg-safe/lib \
+                --library-path /usr/local/lib/python3.12/dist-packages/torch/lib \
+                --library-path /usr/local/lib/python3.12/dist-packages/torch_tensorrt/lib \
+                --library-path /usr/local/nixlbench/lib \
+                --library-path /usr/local/lib \
+                --library-path /opt/amazon/efa/lib \
+                --library-path /usr/lib \
+                --library-path /usr/lib/x86_64-linux-gnu \
+                --library-path /usr/lib/aarch64-linux-gnu \
+                --library-path /usr/local/cuda/compat/lib \
+                --library-path /usr/local/nvidia/lib \
+                --library-path /usr/local/nvidia/lib64 \
+                --library-path /usr/local/nixl/lib/x86_64-linux-gnu \
+                --library-path /usr/local/nixl/lib/aarch64-linux-gnu \
+                --cache-plan "$out/ld.so.cache.plan" \
+                --host libcuda.so.1 \
+                --host libnvidia-ml.so.1 \
+                --entry /usr/bin/python3 \
+                --entry /opt/tritonserver/bin/tritonserver \
+                --entry-glob 'opt/tritonserver/backends/*/libtriton_*.so' \
+                --entry-glob 'usr/local/lib/python3.12/dist-packages/*.cpython-*.so' \
+                --entry-glob 'usr/local/lib/python3.12/dist-packages/*.abi3.so' \
+                > "$out/edges.plan"
+
+              edges=$(wc -l < "$out/edges.plan")
+              test "$edges" -gt 1000
+              sha256sum "$out/edges.plan" > "$out/receipt.sha256"
+              echo "vLLM loader plan: $edges resolved edges"
             '';
       };
 
@@ -660,8 +743,7 @@
             };
           in
           final.callPackage ../pkgs/tritonserver.nix {
-            inherit versions modern;
-            inherit (final) nvidia-sdk;
+            inherit versions;
             containerSrc = container;
             backend = "trtllm";
           };
@@ -677,7 +759,7 @@
           in
           final.callPackage ../pkgs/ngc-python.nix {
             containerSrc = container;
-            inherit (final) nvidia-sdk;
+            variant = "trtllm";
           };
 
         # libtorch C++ library extracted from NGC python torch
