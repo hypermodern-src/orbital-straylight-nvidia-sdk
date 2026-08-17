@@ -352,7 +352,7 @@ HD float3 eyesColor(float2 uv, const FieldParams& P) {
     float dy = uv.y - lane;
     float behind = head - uv.x;
     // smooth onset at the head — a hard step leaves a vertical seam in the glow
-    float tail = smoothstepf(0.f, 0.06f, behind) * expf(-behind * (2.0f + 2.5f * hashf(f2(pass, 5.f))));
+    float tail = smoothstepf(0.f, 0.06f, behind) * expf(-behind * (1.1f + 1.4f * hashf(f2(pass, 5.f))));
     float prof = expf(-thick * dy * dy);
     float glow = expf(-700.f * dy * dy);
     float bulge = expf(-(behind * behind * 2600.f + dy * dy * 12000.f));
@@ -365,6 +365,16 @@ HD float3 eyesColor(float2 uv, const FieldParams& P) {
     col = C.mark(col, tail * prof, beamCol, 1.60f * fb, 0.30f * fb, 1.15f * fb);
     col = C.mark(col, tail * glow, P.accentD, 0.45f * fb, 0.05f * fb, 0.30f * fb);
     col = C.mark(col, bulge, hot, 0.85f * fb, 0.45f * fb, 1.25f * fb);
+    // day only: plasma on paper is a three-zone burn — a WIDE saturated
+    // sheath (emitGain 0 keeps night untouched), and inside it the
+    // overexposed filament: a blown-out white core carved back out of the
+    // stain, the way a laser photographs on white. The filament inside the
+    // sheath is what makes the stroke read as plasma, not ink.
+    float sheath = expf(-thick * 0.22f * dy * dy) * tail;
+    col = C.mark(col, sheath, P.accentD, 0.f, 0.02f * fb, 0.55f * fb);
+    float fil = expf(-thick * 7.f * dy * dy) * tail;
+    float filB = expf(-(behind * behind * 2600.f + dy * dy * 44000.f));
+    col = mix3(col, white, C.day * clamp01(1.15f * fb * (fil + filB)));
   }
 
   // ── the word: the CASK6 lingo, one big title card at a time ─────────────
