@@ -38,10 +38,37 @@ second**. The other 97.7% remains available for work.
   compositor composites the same physical pages. On discrete-GPU boxes it
   degrades to one device→host copy per frame, announced on stderr.
 
-The daemon watches wintermute's `theme.json` (~2Hz): palette morphs land
-on the next frame, and a generation bump fires the 0.9s reconcile sweep —
-the same choreography as the QML layer it can replace. Frame-callback
-paced: fully occluded it parks in `poll()` at 0% GPU.
+The daemon watches wintermute's `theme.json` (~2Hz): palette changes ride
+the color spinor (below) over 0.9s, and a generation bump fires the
+reconcile sweep — the same choreography as the QML layer it can replace.
+Every output gets its own surface, pool and pacing: multi-monitor is
+native, hotplug handled in place. Frame-callback paced: fully occluded it
+parks in `poll()` at 0% GPU.
+
+## scenes
+
+The kernel carries more than one card. `--scene field` (default) is the
+two-axis design space described above; `--scene eyes` is the reference
+reel's title-card treatment: plasma blades sweeping the frame (white-hot
+head, long cooling tail, every pass re-rolling its lane and speed), the
+CASK6 kernel words cycling as big glitch-sliced chromatic-split title
+cards, hairline scratches, and a floor that smears everything into
+horizontal streaks. The card honors the full two-axis plane — night
+emits, day prints ink, affluent tempers the glitch — through one corner
+algebra (`CornerInk`). Same conformance story: the scene lives inside the
+ONE `__host__ __device__` function, so `--verify --scene eyes` gates it
+pixel-for-pixel. Wintermute can flip it live: a `"scene": "eyes"` key in
+theme.json overrides the flag on the next ~2Hz tick.
+
+## the color spinor
+
+Chroma lives in the plane perpendicular to the gray axis — the complex
+plane of colors, hue as phase, saturation as magnitude. A hue move is a
+rotor about that axis (`spinColor`), and palette morphs decompose as
+(luma, saturation, hue) with hue riding the rotor the SHORT way around
+(`spinorMorph`): red reaches blue through magenta, never through the
+desaturated gray an RGB lerp wades through. The daemon uses it for theme
+transitions; `--spin θ` on the CLI rotates any palette wholesale.
 
 ## the stub-libcuda mirage (NixOS field note)
 

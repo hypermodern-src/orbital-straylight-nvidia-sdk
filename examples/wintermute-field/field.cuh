@@ -20,6 +20,7 @@ where it earns its keep. Palette arrives from wintermute's theme.json
 //
   wintermute-field --size 3840x2160 --time 12.5 --reg 1.0 \
       --theme ~/.local/state/wintermute/theme.json --out /tmp/field.ppm
+  wintermute-field --scene eyes     # the reel's EYES title card, verbatim
   wintermute-field --bench          # Mpix/s on the resident GB10
   wintermute-field --verify         # CPU vs GPU conformance
 //
@@ -68,6 +69,41 @@ HD float smoothstepf(float e0, float e1, float x) {
 HD float stepf(float e, float x) { return x >= e ? 1.f : 0.f; }
 HD float dot2(float2 a, float2 b) { return a.x * b.x + a.y * b.y; }
 HD float len2(float2 a) { return sqrtf(dot2(a, a)); }
+HD float dot3(float3 a, float3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+HD float3 cross3(float3 a, float3 b) {
+  return f3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+}
+
+// ── the color spinor ──────────────────────────────────────────────────────
+// Chroma lives in the plane ⊥ the gray axis n̂ = (1,1,1)/√3 — the complex
+// plane of colors, with hue as phase and saturation as magnitude. A hue
+// move is a rotor on that plane: the quaternion q = (cos θ/2, n̂ sin θ/2)
+// acting v' = q v q̄, which for a fixed axis collapses to Rodrigues. Luma
+// (the component along n̂) is untouched by construction.
+HD float3 spinColor(float3 v, float theta) {
+  const float3 n = f3(0.57735027f, 0.57735027f, 0.57735027f);
+  float c = cosf(theta), s = sinf(theta);
+  float3 par = n * dot3(v, n);
+  return par + (v - par) * c + cross3(n, v) * s;
+}
+
+// Morph a → b as (luma, saturation, hue): luma and saturation interpolate
+// linearly, hue rides the rotor the SHORT way around the gray axis — red
+// reaches blue through magenta, never through desaturated gray, which is
+// what a straight RGB lerp does. u=0 → a exactly, u=1 → b exactly.
+HD float3 spinorMorph(float3 a, float3 b, float u) {
+  const float3 n = f3(0.57735027f, 0.57735027f, 0.57735027f);
+  float la = dot3(a, n), lb = dot3(b, n);
+  float3 ca = a - n * la, cb = b - n * lb;
+  float ma = sqrtf(dot3(ca, ca)), mb = sqrtf(dot3(cb, cb));
+  float l = mixf(la, lb, u), m = mixf(ma, mb, u);
+  if (ma < 1e-4f || mb < 1e-4f)          // a gray endpoint has no hue: lerp
+    return n * l + ca * (1.f - u) + cb * u;
+  float3 da = ca * (1.f / ma), db = cb * (1.f / mb);
+  float theta = acosf(fminf(1.f, fmaxf(-1.f, dot3(da, db))));
+  float sgn = dot3(cross3(da, db), n) >= 0.f ? 1.f : -1.f;
+  return n * l + spinColor(da, sgn * theta * u) * m;
+}
 
 // ── the shader's primitives, verbatim ─────────────────────────────────────
 
@@ -118,6 +154,7 @@ struct FieldParams {
   float sweep;    // -1 parked; 0..1 during a reconcile pass
   float load;     // live GPU utilization 0..1 — drives the beam curtains
   float power;    // live GPU power draw, normalized — heats the curtain tips
+  int scene;      // 0 the field; 1 the EYES card (--scene eyes)
   float3 surface, paper, accent, accentD;
 };
 
@@ -250,9 +287,191 @@ HD float burnAt(float2 p, float t, float load, float aspect) {
   return b * (0.16f + 0.84f * load);
 }
 
+// ── the corner algebra ────────────────────────────────────────────────────
+// The card's colors live on the two-axis plane: night/day (surface luminance
+// decides) crossed with affluent/facility (folded into the masks upstream as
+// calm and blaze). Every motif reduces to ONE rule — a scalar mask with an
+// emissive tint+gain for night, an ink density for day, and optionally a
+// stain that pulls the printed mark toward the accent. Keeping the whole
+// scene inside this algebra is what keeps all four corners coherent.
+struct CornerInk {
+  float night, day;   // exactly one is 1
+  float3 pigment;     // the day stain (the theme accent)
+  HD float3 mark(float3 col, float mask, float3 emitTint,
+                 float emitGain, float inkGain, float stainGain = 0.f) const {
+    col = col + emitTint * (night * emitGain * mask);
+    col = col - f3(1.f, 1.f, 1.f) * (day * inkGain * mask);
+    if (stainGain > 0.f) col = mix3(col, pigment, day * stainGain * mask);
+    return col;
+  }
+};
+
+// ── THE EYES CARD — scene 1, the reference reel's title frame, verbatim ───
+// Near-black teal field. Plasma blades sweep the frame; the kernel words burn
+// glitch-sliced and chromatic-split right of center; below a floor line
+// everything smears into horizontal streaks and a blurred echo of the word.
+// Load-reactive like the field: idle simmers, inference blazes. Theme-driven —
+// the reel's cyan is what a teal palette renders.
+HD float3 eyesColor(float2 uv, const FieldParams& P) {
+  float t = P.time;
+  float2 p = f2((uv.x - 0.5f) * P.aspect, uv.y - 0.5f);
+  float3 white = f3(1, 1, 1);
+  float3 hot = mix3(P.accentD, white, 0.60f);     // beam core, word core
+  float3 cold = mix3(P.accent, P.accentD, 0.5f);  // ambient teal
+
+  // the two axes, same doctrine as the field: night emits, day prints;
+  // facility glitches at full blaze, affluent keeps its composure
+  float lum = P.surface.x * 0.299f + P.surface.y * 0.587f + P.surface.z * 0.114f;
+  float night = 1.f - stepf(0.5f, lum);
+  CornerInk C{night, 1.f - night, P.accent};
+  float calm = 0.30f + 0.70f * P.reg;             // affluent tempers the glitch
+
+  // base — night: the surface crushed toward black plus the pool the blades
+  // soak into the room; day: the paper as it is, lightly toned at the floor
+  float3 col = P.surface * mixf(1.f, 0.42f, night);
+  col = C.mark(col, smoothstepf(0.55f, 1.f, uv.y), cold, 0.035f, 0.030f);
+  col = C.mark(col, 1.f, cold, 0.018f + 0.022f * P.load, 0.012f * P.load);
+  float ax = (uv.x - 0.20f), ay = (uv.y - 0.47f) * 1.6f;
+  float amb = expf(-5.f * (ax * ax + ay * ay));
+  col = C.mark(col, amb, cold, 0.060f, 0.f, 0.045f);
+
+  // ── the plasma blades: traveling light-trails, white-hot head, long tail ─
+  // Each pass re-rolls its own lane, speed, thickness and tail length; three
+  // blades staggered so the frame is never empty and never crowded.
+  float flick = 0.90f + 0.10f * hashf(f2(floorf(t * 24.f), 3.3f));
+  float blaze = (0.75f + 0.45f * P.load) * (0.70f + 0.30f * P.reg);
+  for (int i = 0; i < 3; i++) {
+    float fi = (float)i;
+    float speed = 0.055f + 0.035f * hashf(f2(fi, 8.8f));
+    float ph = fractf(t * speed + fi * 0.37f);
+    float pass = floorf(t * speed + fi * 0.37f) + fi * 91.f;   // lane seed
+    float lane = 0.30f + 0.45f * hashf(f2(pass, 1.5f));
+    float thick = 9000.f + 26000.f * hashf(f2(pass, 3.3f));
+    float head = mixf(-0.35f, 1.45f, ph);
+    float dy = uv.y - lane;
+    float behind = head - uv.x;
+    // smooth onset at the head — a hard step leaves a vertical seam in the glow
+    float tail = smoothstepf(0.f, 0.06f, behind) * expf(-behind * (2.0f + 2.5f * hashf(f2(pass, 5.f))));
+    float prof = expf(-thick * dy * dy);
+    float glow = expf(-700.f * dy * dy);
+    float bulge = expf(-(behind * behind * 2600.f + dy * dy * 12000.f));
+    // night: white-hot at the head, cooling to accent down the tail;
+    // day: an ink trail, densest at the head, stained toward the accent
+    float3 beamCol = mix3(P.accentD, hot, tail);
+    float fb = flick * blaze;
+    col = C.mark(col, tail * prof, beamCol, 1.60f * fb, 0.32f * fb, 0.30f * fb);
+    col = C.mark(col, tail * glow, P.accentD, 0.45f * fb, 0.08f * fb);
+    col = C.mark(col, bulge, hot, 0.85f * fb, 0.38f * fb);
+  }
+
+  // ── the word: the CASK6 lingo, one big title card at a time ─────────────
+  // Glitch-sliced, chromatic-split, bloom-hugged — the EYES treatment, cycled
+  // through the kernel words. Glyph height auto-fits the longest names.
+  const char* W[8] = { "TCGEN05.MMA", "WGMMA.SYNC", "CP.ASYNC.BULK",
+                       "MBARRIER.ARRIVE", "SM_121A", "CASK6::GRAPH",
+                       "TMEM_LD", "XMMA_GEMM_F16" };
+  const int  L[8] = { 11, 10, 13, 15, 7, 12, 7, 13 };
+  float period = 4.2f;
+  int wi = ((int)(t / period)) & 7;
+  float wph = fractf(t / period);
+  const char* word = W[wi];
+  int wl = L[wi];
+  // life: glitch-in, hold, cut out — and the reveal itself is a storm
+  float vis = smoothstepf(0.f, 0.08f, wph) * smoothstepf(1.f, 0.85f, wph);
+  float rev = 1.f - smoothstepf(0.f, 0.25f, wph);
+
+  float gh = fminf(0.105f, 0.62f * P.aspect * (7.f / 5.f) / (1.18f * (float)wl));
+  float gwuv = gh * (5.f / 7.f) / P.aspect;
+  float wordW = (float)wl * gwuv * 1.18f;
+  float ox = 0.51f - wordW * 0.5f, oy = 0.345f - gh * 0.5f;
+
+  float band = floorf(uv.y * 110.f);
+  float seed = floorf(t * 9.f);
+  // glitch storms: bursts of violent slice displacement over constant
+  // jitter — the affluent register keeps its composure (calm)
+  float storm = calm * fmaxf(rev, stepf(0.78f, hashf(f2(floorf(t * 0.9f), 17.f))));
+  float gj = (hashf(f2(band, seed)) - 0.5f) *
+             (0.0025f + 0.030f * storm * stepf(0.72f, hashf(f2(band, seed + 4.f))));
+  float drop = 1.f - 0.85f * storm * stepf(0.90f, hashf(f2(band, seed + 9.f)));
+  float split = 0.0012f + 0.006f * storm;
+  float wr = renderWord(f2(uv.x + gj + split, uv.y), word, wl, ox, oy, gh, P.aspect);
+  float wg = renderWord(f2(uv.x + gj,         uv.y), word, wl, ox, oy, gh, P.aspect);
+  float wb = renderWord(f2(uv.x + gj - split, uv.y), word, wl, ox, oy, gh, P.aspect);
+  float wbright = vis * drop * (0.85f + 0.15f * P.load);
+  // The one motif OUTSIDE the scalar algebra: the chromatic split is
+  // per-channel by nature. Night emits the split channels; day subtracts
+  // them — either way the fringes appear where the split misaligns.
+  col = col + C.night * wbright * f3(wr * (0.72f * hot.x + 0.28f),
+                                     wg * (0.72f * hot.y + 0.28f),
+                                     wb * (0.72f * hot.z + 0.28f));
+  col = col - C.day * wbright * 0.80f * f3(wr, wg, wb);
+  // bloom hugging the letterforms: a dilation ring of the glyph mask
+  float bloom = 0.f;
+  for (int i = 0; i < 8; i++) {
+    float ang = 0.7853982f * (float)i;
+    bloom += renderWord(f2(uv.x + gj + cosf(ang) * 0.006f, uv.y + sinf(ang) * 0.010f),
+                        word, wl, ox, oy, gh, P.aspect);
+  }
+  bloom *= 0.125f;
+  col = C.mark(col, bloom, P.accentD, 0.32f * wbright, 0.f, 0.10f * wbright);
+  float dxh = fmaxf(fmaxf(ox - uv.x, uv.x - (ox + wordW)), 0.f);
+  float dyh = fmaxf(fmaxf(oy - uv.y, uv.y - (oy + gh)), 0.f);
+  float halo = expf(-60.f * (dxh * dxh + dyh * dyh));
+  col = C.mark(col, halo, cold, 0.16f * vis, 0.030f * vis);
+
+  // ── stray hairline scratches, blinking in and out ───────────────────────
+  float srow = floorf(uv.y * 160.f);
+  float sseed = floorf(t * 0.7f);
+  float sgate = stepf(0.982f, hashf(f2(srow, sseed)));
+  float sx = hashf(f2(srow, sseed + 3.f));
+  float slen = 0.05f + 0.20f * hashf(f2(srow, sseed + 6.f));
+  float sseg = smoothstepf(slen, slen * 0.4f, fabsf(uv.x - sx));
+  float sline = smoothstepf(0.20f, 0.04f, fabsf(fractf(uv.y * 160.f) - 0.5f));
+  float scratch = sgate * sseg * sline;
+  col = C.mark(col, scratch, white, 0.06f, 0.05f);
+
+  // ── the floor: smeared echo of the word + streak bands ──────────────────
+  if (uv.y > 0.80f) {
+    float depth = (uv.y - 0.80f) * 5.f;
+    float gh2 = gh * 0.43f, oy2 = 0.855f;
+    float yf = 2.f * oy2 + gh2 - uv.y;   // flip within the echo's box
+    // smear taps tighter than one glyph pixel (~0.004 uv) or the echo
+    // aliases into a checkerboard instead of a motion blur
+    float refl = 0.f;
+    for (int i = -3; i <= 3; i++)
+      refl += renderWord(f2(uv.x + (float)i * 0.004f, yf), word, wl, ox, oy2, gh2, P.aspect);
+    refl /= 7.f;
+    col = C.mark(col, refl, mix3(cold, white, 0.30f), 0.12f * vis, 0.10f * vis);
+
+    float bandF = floorf(uv.y * 90.f);
+    float sn = fbm2(f2(uv.x * 2.5f - t * 0.06f, bandF * 0.71f));
+    float bh = 0.30f + 0.70f * hashf(f2(bandF, 4.4f));
+    float streaks = sn * sn * bh * smoothstepf(0.f, 0.6f, depth) * (1.1f - 0.55f * uv.x);
+    col = C.mark(col, streaks, cold, 0.22f, 0.045f, 0.030f);
+  }
+
+  col = col * (1.f - mixf(0.20f, 0.30f, night) * dot2(p, p));
+
+  // the reconcile sweep, same choreography as the field
+  if (P.sweep > -0.5f) {
+    float ds = uv.y - P.sweep;
+    float line = smoothstepf(0.005f, 0.f, fabsf(ds));
+    float trailS = smoothstepf(0.15f, 0.f, -ds) * stepf(ds, 0.f);
+    col = C.mark(col, line, P.accent, 0.22f, 0.12f);
+    col = C.mark(col, trailS, P.accent, 0.05f, 0.03f);
+  }
+
+  // grain + always-on dither, verbatim from the field
+  col = col + f3(1, 1, 1) * ((hashf(f2(uv.x * 1920.f + fractf(t), uv.y * 1080.f + fractf(t))) - 0.5f) * P.grain);
+  col = col + f3(1, 1, 1) * ((hashf(f2(uv.x * 3840.f + fractf(t * 0.37f), uv.y * 2160.f + fractf(t * 0.37f))) - 0.5f) * (1.2f / 255.f));
+
+  return col;
+}
+
 // ── THE FIELD — one function, host and device ─────────────────────────────
 
 HD float3 fieldColor(float2 uv, const FieldParams& P) {
+  if (P.scene == 1) return eyesColor(uv, P);
   float2 p = f2((uv.x - 0.5f) * P.aspect, uv.y - 0.5f);
   float t = P.time;
 
@@ -503,6 +722,15 @@ inline void loadTheme(const std::string& path, FieldParams& P) {
   hexAfter(s, "base01", P.paper);
   hexAfter(s, "base0A", P.accent);
   hexAfter(s, "base09", P.accentD);
+  // optional scene selector — lets wintermute flip the card live
+  auto sc = s.find("\"scene\"");
+  if (sc != std::string::npos) {
+    auto q = s.find('"', s.find(':', sc));
+    if (q != std::string::npos) {
+      if (s.compare(q + 1, 5, "eyes\"") == 0) P.scene = 1;
+      else if (s.compare(q + 1, 6, "field\"") == 0) P.scene = 0;
+    }
+  }
   auto r = s.find("\"register\"");
   if (r != std::string::npos) {
     auto colon = s.find(':', r);

@@ -8,14 +8,15 @@
 // unified memory over NVLink-C2C) this is genuinely zero-copy; elsewhere it
 // falls back to one device→host memcpy per frame.
 //
-// Live: watches wintermute's theme.json (mtime, ~2Hz) — palette morphs land
-// on the next frame, and a GENERATION bump fires the reconcile sweep, same
-// as the QML layer. 30fps frame-callback pacing; double-buffered XRGB8888.
+// EVERY output gets its own surface + pool + frame pacing: multi-monitor is
+// native, and output hotplug (add OR remove) is handled in place. Live:
+// watches wintermute's theme.json (mtime, ~2Hz) — palette morphs land on
+// the next frame, and a GENERATION bump fires the reconcile sweep, same as
+// the QML layer. 30fps frame-callback pacing; double-buffered XRGB8888.
 //
-//   wintermute-field-daemon [--theme PATH] [--fps N]
+//   wintermute-field-daemon [--theme PATH] [--fps N] [--scene eyes|field]
 //
-// MVP scope: first output, buffer at logical size (compositor scales; a
-// wp_viewporter/fractional-scale pass is queued). SIGTERM-clean.
+// SIGTERM-clean.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #include "field.cuh"
@@ -55,17 +56,20 @@ static __global__ void fieldKernelBGRA(uchar4* out, int w, int h, FieldParams P)
 
 // ── state ─────────────────────────────────────────────────────────────────
 
-struct App {
-  wl_display* display = nullptr;
-  wl_compositor* compositor = nullptr;
-  wl_shm* shm = nullptr;
-  zwlr_layer_shell_v1* layerShell = nullptr;
+// One per output: its own layer surface, its own pool, its own pacing. The
+// object's address is listener user_data, so Panels live behind pointers and
+// are torn down (pending callback included) before deletion.
+struct Panel {
+  wl_output* output = nullptr;    // nullptr → compositor picks (fallback)
+  uint32_t registryName = 0;      // for wl_output removal matching
+
   wl_surface* surface = nullptr;
   zwlr_layer_surface_v1* layerSurface = nullptr;
+  wl_callback* pendingCb = nullptr;
 
   int width = 0, height = 0;
   bool configured = false;
-  bool running = true;
+  bool needsResurface = false;
 
   // double buffer
   uint8_t* pool = nullptr;
@@ -75,20 +79,33 @@ struct App {
   uchar4* devScratch = nullptr; // fallback path when host-register fails
   bool zeroCopy = false;
   int frontBuffer = 0;
+  double lastFrame = 0;
+};
 
-  // field state
+struct App {
+  wl_display* display = nullptr;
+  wl_compositor* compositor = nullptr;
+  wl_shm* shm = nullptr;
+  zwlr_layer_shell_v1* layerShell = nullptr;
+
+  std::vector<Panel*> panels;
+  bool running = true;
+
+  // field state (shared across panels — same scene, per-panel aspect)
   FieldParams P{};
   std::string themePath;
   int generation = -1;
   double sweepStart = -1e9;
-  timespec themeCheck{};
+  // palette morph: theme changes ride the color spinor (hue takes the
+  // geodesic around the gray axis) over 0.9s instead of snapping
+  float3 palFrom[4]{}, palTo[4]{};
+  double palStart = -1e9;
+  double lastTick = 0;
   double fpsInterval = 1.0 / 30.0;
-  double lastFrame = 0;
-  long framesLeft = -1;         // --frames N: exit after N (test mode)
+  long framesLeft = -1;         // --frames N: exit after N renders (test mode)
 
   // live GPU telemetry (NVML) — the field breathes with the real machine
   bool nvmlOk = false;
-  bool needsResurface = false;  // compositor closed our surface → rebuild it
   nvmlDevice_t nvmlDev{};
   float loadTarget = 0.f;
   float powerTarget = 0.f;
@@ -118,80 +135,33 @@ static int readGeneration(const std::string& path) {
 
 static void themeTick() {
   if (app.themePath.empty()) return;
-  loadTheme(app.themePath, app.P);
+  // Parse into the current TARGETS, not the live palette: scene/register
+  // apply immediately, but a palette change only retargets the morph — the
+  // live colors ride the spinor from wherever they are now (mid-morph safe).
+  FieldParams tmp = app.P;
+  tmp.surface = app.palTo[0]; tmp.paper   = app.palTo[1];
+  tmp.accent  = app.palTo[2]; tmp.accentD = app.palTo[3];
+  loadTheme(app.themePath, tmp);
+  app.P.reg = tmp.reg;
+  app.P.scene = tmp.scene;
+  float3 nt[4] = {tmp.surface, tmp.paper, tmp.accent, tmp.accentD};
+  bool changed = false;
+  for (int i = 0; i < 4; i++)
+    changed = changed || nt[i].x != app.palTo[i].x || nt[i].y != app.palTo[i].y ||
+              nt[i].z != app.palTo[i].z;
+  if (changed) {
+    app.palFrom[0] = app.P.surface; app.palFrom[1] = app.P.paper;
+    app.palFrom[2] = app.P.accent;  app.palFrom[3] = app.P.accentD;
+    for (int i = 0; i < 4; i++) app.palTo[i] = nt[i];
+    // first load (before generation is known) snaps; every later one morphs
+    app.palStart = app.generation >= 0 ? nowSec() : -1e9;
+  }
   int g = readGeneration(app.themePath);
   if (g >= 0 && g != app.generation) {
     if (app.generation >= 0) app.sweepStart = nowSec();   // not on first load
     app.generation = g;
   }
 }
-
-// ── wayland plumbing ──────────────────────────────────────────────────────
-
-static void registryGlobal(void*, wl_registry* reg, uint32_t name,
-                           const char* iface, uint32_t) {
-  if (!strcmp(iface, wl_compositor_interface.name))
-    app.compositor = (wl_compositor*)wl_registry_bind(reg, name, &wl_compositor_interface, 4);
-  else if (!strcmp(iface, wl_shm_interface.name))
-    app.shm = (wl_shm*)wl_registry_bind(reg, name, &wl_shm_interface, 1);
-  else if (!strcmp(iface, zwlr_layer_shell_v1_interface.name))
-    app.layerShell = (zwlr_layer_shell_v1*)wl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, 1);
-}
-
-static void registryGlobalRemove(void*, wl_registry*, uint32_t) {}
-static const wl_registry_listener registryListener = {registryGlobal, registryGlobalRemove};
-
-static void layerConfigure(void*, zwlr_layer_surface_v1* ls, uint32_t serial,
-                           uint32_t w, uint32_t h) {
-  zwlr_layer_surface_v1_ack_configure(ls, serial);
-  if (w && h) { app.width = (int)w; app.height = (int)h; }
-  app.configured = true;
-}
-
-// The compositor destroyed our layer surface — happens on output
-// reconfiguration (resolution/scale change, monitor hotplug, DPMS, login).
-// Do NOT exit: rebuild the surface in place. Exiting here is what blanked the
-// desktop (with a restart) or flickered it (with Restart=always).
-static void layerClosed(void*, zwlr_layer_surface_v1*) { app.needsResurface = true; }
-static const zwlr_layer_surface_v1_listener layerListener = {layerConfigure, layerClosed};
-
-static bool makeBuffers() {
-  size_t stride = size_t(app.width) * 4;
-  size_t frame = stride * app.height;
-  app.poolSize = frame * 2;
-
-  int fd = memfd_create("wintermute-field", MFD_CLOEXEC);
-  if (fd < 0 || ftruncate(fd, app.poolSize) < 0) return false;
-  app.pool = (uint8_t*)mmap(nullptr, app.poolSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-  if (app.pool == MAP_FAILED) return false;
-
-  wl_shm_pool* pool = wl_shm_create_pool(app.shm, fd, (int)app.poolSize);
-  for (int i = 0; i < 2; i++)
-    app.buffers[i] = wl_shm_pool_create_buffer(pool, (int)(i * frame), app.width,
-                                               app.height, (int)stride, WL_SHM_FORMAT_XRGB8888);
-  wl_shm_pool_destroy(pool);
-  close(fd);
-
-  // the GB10 move: register the compositor's own memory with CUDA
-  if (cudaHostRegister(app.pool, app.poolSize,
-                       cudaHostRegisterMapped | cudaHostRegisterPortable) == cudaSuccess) {
-    void* dp = nullptr;
-    if (cudaHostGetDevicePointer(&dp, app.pool, 0) == cudaSuccess) {
-      app.devPtrs[0] = (uchar4*)dp;
-      app.devPtrs[1] = (uchar4*)((uint8_t*)dp + frame);
-      app.zeroCopy = true;
-    }
-  }
-  if (!app.zeroCopy) {
-    if (cudaMalloc(&app.devScratch, frame) != cudaSuccess) return false;
-    fprintf(stderr, "wintermute-field-daemon: host-register unavailable; memcpy path\n");
-  } else {
-    fprintf(stderr, "wintermute-field-daemon: ZERO-COPY — kernel writes the compositor's pool\n");
-  }
-  return true;
-}
-
-static void renderFrame();
 
 // Poll GPU utilization + power draw. Best-effort: if NVML is unavailable the
 // targets stay 0 and the field renders its calm idle state.
@@ -205,60 +175,208 @@ static void nvmlPoll() {
     app.powerTarget = fminf(1.f, (mw * 1e-3f) / 140.f);   // ~140W board ceiling
 }
 
+// ── per-panel surface lifecycle ───────────────────────────────────────────
+
+static void teardownPanel(Panel* p) {
+  if (p->pendingCb) { wl_callback_destroy(p->pendingCb); p->pendingCb = nullptr; }
+  if (p->zeroCopy) { cudaHostUnregister(p->pool); p->zeroCopy = false; }
+  if (p->devScratch) { cudaFree(p->devScratch); p->devScratch = nullptr; }
+  if (p->pool && p->pool != MAP_FAILED) { munmap(p->pool, p->poolSize); }
+  p->pool = nullptr; p->poolSize = 0;
+  for (int i = 0; i < 2; i++) { if (p->buffers[i]) wl_buffer_destroy(p->buffers[i]); p->buffers[i] = nullptr; }
+  p->devPtrs[0] = p->devPtrs[1] = nullptr;
+  if (p->layerSurface) { zwlr_layer_surface_v1_destroy(p->layerSurface); p->layerSurface = nullptr; }
+  if (p->surface) { wl_surface_destroy(p->surface); p->surface = nullptr; }
+  p->configured = false;
+}
+
+static void layerConfigure(void* data, zwlr_layer_surface_v1* ls, uint32_t serial,
+                           uint32_t w, uint32_t h) {
+  Panel* p = (Panel*)data;
+  zwlr_layer_surface_v1_ack_configure(ls, serial);
+  if (w && h) { p->width = (int)w; p->height = (int)h; }
+  p->configured = true;
+}
+
+// The compositor destroyed a layer surface — happens on output
+// reconfiguration (resolution/scale change, monitor hotplug, DPMS, login).
+// Do NOT exit: rebuild that panel in place. Exiting here is what blanked the
+// desktop (with a restart) or flickered it (with Restart=always).
+static void layerClosed(void* data, zwlr_layer_surface_v1*) {
+  ((Panel*)data)->needsResurface = true;
+}
+static const zwlr_layer_surface_v1_listener layerListener = {layerConfigure, layerClosed};
+
+static bool makeBuffers(Panel* p) {
+  size_t stride = size_t(p->width) * 4;
+  size_t frame = stride * p->height;
+  p->poolSize = frame * 2;
+
+  int fd = memfd_create("wintermute-field", MFD_CLOEXEC);
+  if (fd < 0 || ftruncate(fd, p->poolSize) < 0) return false;
+  p->pool = (uint8_t*)mmap(nullptr, p->poolSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  if (p->pool == MAP_FAILED) return false;
+
+  wl_shm_pool* pool = wl_shm_create_pool(app.shm, fd, (int)p->poolSize);
+  for (int i = 0; i < 2; i++)
+    p->buffers[i] = wl_shm_pool_create_buffer(pool, (int)(i * frame), p->width,
+                                              p->height, (int)stride, WL_SHM_FORMAT_XRGB8888);
+  wl_shm_pool_destroy(pool);
+  close(fd);
+
+  // the GB10 move: register the compositor's own memory with CUDA
+  if (cudaHostRegister(p->pool, p->poolSize,
+                       cudaHostRegisterMapped | cudaHostRegisterPortable) == cudaSuccess) {
+    void* dp = nullptr;
+    if (cudaHostGetDevicePointer(&dp, p->pool, 0) == cudaSuccess) {
+      p->devPtrs[0] = (uchar4*)dp;
+      p->devPtrs[1] = (uchar4*)((uint8_t*)dp + frame);
+      p->zeroCopy = true;
+    }
+  }
+  if (!p->zeroCopy) {
+    if (cudaMalloc(&p->devScratch, frame) != cudaSuccess) return false;
+    fprintf(stderr, "wintermute-field-daemon: host-register unavailable; memcpy path\n");
+  } else {
+    fprintf(stderr, "wintermute-field-daemon: ZERO-COPY — kernel writes the compositor's pool\n");
+  }
+  return true;
+}
+
+static bool pumpEvents(int timeoutMs);
+
+static bool setupPanel(Panel* p) {
+  p->configured = false;
+  p->surface = wl_compositor_create_surface(app.compositor);
+  // BOTTOM, not BACKGROUND: the wlr layer order is background < bottom < top,
+  // so this deterministically stacks ABOVE the QML wallpaper (which holds
+  // BACKGROUND as the always-present safety-net floor) and below windows. No
+  // creation-order race between the two renderers — the field wins when it's
+  // up, the QML floor shows through the instant it isn't. Never a blank desktop.
+  p->layerSurface = zwlr_layer_shell_v1_get_layer_surface(
+      app.layerShell, p->surface, p->output,
+      ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM, "wintermute-field");
+  zwlr_layer_surface_v1_add_listener(p->layerSurface, &layerListener, p);
+  zwlr_layer_surface_v1_set_anchor(p->layerSurface,
+      ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+      ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+  zwlr_layer_surface_v1_set_exclusive_zone(p->layerSurface, -1);
+  wl_surface_commit(p->surface);
+
+  for (int i = 0; !p->configured && i < 30; i++)
+    if (!pumpEvents(100)) return false;         // display died → let main exit→restart
+  if (!p->configured) return false;
+  if (p->width <= 0 || p->height <= 0) { p->width = 1920; p->height = 1080; }
+  return makeBuffers(p);
+}
+
+// ── render + frame pacing (per panel) ─────────────────────────────────────
+
 static void frameDone(void* data, wl_callback* cb, uint32_t);
 static const wl_callback_listener frameListener = {frameDone};
 
-static void scheduleFrame() {
-  wl_callback* cb = wl_surface_frame(app.surface);
-  wl_callback_add_listener(cb, &frameListener, nullptr);
-  wl_surface_commit(app.surface);
+static void scheduleFrame(Panel* p) {
+  p->pendingCb = wl_surface_frame(p->surface);
+  wl_callback_add_listener(p->pendingCb, &frameListener, p);
+  wl_surface_commit(p->surface);
 }
 
-static void renderFrame() {
-  if (!app.configured || app.needsResurface || !app.surface) return;
+static void renderFrame(Panel* p) {
+  if (!p->configured || p->needsResurface || !p->surface) return;
   double t = nowSec();
-  app.P.aspect = (float)app.width / app.height;
+  app.P.aspect = (float)p->width / p->height;
   app.P.time = (float)fmod(t, 86400.0);
 
   // ease live telemetry into the field (the 2Hz poll reads as a smooth breath)
   app.P.load += (app.loadTarget - app.P.load) * 0.06f;
   app.P.power += (app.powerTarget - app.P.power) * 0.06f;
 
+  // the palette rides the spinor: recomputed from endpoints every frame
+  // (stateless), landing exactly on the target at u=1
+  float mu = (float)((t - app.palStart) / 0.9);
+  mu = mu < 0.f ? 0.f : (mu > 1.f ? 1.f : mu);
+  mu = mu * mu * (3.f - 2.f * mu);
+  app.P.surface = spinorMorph(app.palFrom[0], app.palTo[0], mu);
+  app.P.paper   = spinorMorph(app.palFrom[1], app.palTo[1], mu);
+  app.P.accent  = spinorMorph(app.palFrom[2], app.palTo[2], mu);
+  app.P.accentD = spinorMorph(app.palFrom[3], app.palTo[3], mu);
+
   // reconcile sweep: 0.9s pass on generation change, parked otherwise
   double sw = t - app.sweepStart;
   app.P.sweep = (sw >= 0 && sw < 0.9) ? (float)(-0.15 + 1.30 * (sw / 0.9)) : -1.f;
 
-  int b = app.frontBuffer ^ 1;
-  size_t frame = size_t(app.width) * app.height;
-  dim3 block(16, 16), grid((app.width + 15) / 16, (app.height + 15) / 16);
+  int b = p->frontBuffer ^ 1;
+  size_t frame = size_t(p->width) * p->height;
+  dim3 block(16, 16), grid((p->width + 15) / 16, (p->height + 15) / 16);
 
-  if (app.zeroCopy) {
-    fieldKernelBGRA<<<grid, block>>>(app.devPtrs[b], app.width, app.height, app.P);
+  if (p->zeroCopy) {
+    fieldKernelBGRA<<<grid, block>>>(p->devPtrs[b], p->width, p->height, app.P);
     cudaDeviceSynchronize();
   } else {
-    fieldKernelBGRA<<<grid, block>>>(app.devScratch, app.width, app.height, app.P);
-    cudaMemcpy(app.pool + b * frame * 4, app.devScratch, frame * 4, cudaMemcpyDeviceToHost);
+    fieldKernelBGRA<<<grid, block>>>(p->devScratch, p->width, p->height, app.P);
+    cudaMemcpy(p->pool + b * frame * 4, p->devScratch, frame * 4, cudaMemcpyDeviceToHost);
   }
 
-  wl_surface_attach(app.surface, app.buffers[b], 0, 0);
-  wl_surface_damage_buffer(app.surface, 0, 0, app.width, app.height);
-  app.frontBuffer = b;
-  app.lastFrame = t;
+  wl_surface_attach(p->surface, p->buffers[b], 0, 0);
+  wl_surface_damage_buffer(p->surface, 0, 0, p->width, p->height);
+  p->frontBuffer = b;
+  p->lastFrame = t;
   if (app.framesLeft > 0 && --app.framesLeft == 0) app.running = false;
 }
 
-static void frameDone(void*, wl_callback* cb, uint32_t) {
+static void frameDone(void* data, wl_callback* cb, uint32_t) {
+  Panel* p = (Panel*)data;
   wl_callback_destroy(cb);
-  if (app.needsResurface || !app.surface) return;   // rebuild path owns the loop
+  p->pendingCb = nullptr;
+  if (p->needsResurface || !p->surface) return;   // rebuild path owns the loop
   double t = nowSec();
 
-  static int themePoll = 0;
-  if (++themePoll >= 15) { themePoll = 0; themeTick(); nvmlPoll(); }
+  if (t - app.lastTick >= 0.5) { app.lastTick = t; themeTick(); nvmlPoll(); }
 
-  if (t - app.lastFrame >= app.fpsInterval)
-    renderFrame();
-  scheduleFrame();
+  if (t - p->lastFrame >= app.fpsInterval)
+    renderFrame(p);
+  scheduleFrame(p);
 }
+
+// ── wayland plumbing ──────────────────────────────────────────────────────
+
+static bool registryReady() {
+  return app.compositor && app.shm && app.layerShell;
+}
+
+static void registryGlobal(void*, wl_registry* reg, uint32_t name,
+                           const char* iface, uint32_t) {
+  if (!strcmp(iface, wl_compositor_interface.name))
+    app.compositor = (wl_compositor*)wl_registry_bind(reg, name, &wl_compositor_interface, 4);
+  else if (!strcmp(iface, wl_shm_interface.name))
+    app.shm = (wl_shm*)wl_registry_bind(reg, name, &wl_shm_interface, 1);
+  else if (!strcmp(iface, zwlr_layer_shell_v1_interface.name))
+    app.layerShell = (zwlr_layer_shell_v1*)wl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, 1);
+  else if (!strcmp(iface, wl_output_interface.name)) {
+    Panel* p = new Panel();
+    p->output = (wl_output*)wl_registry_bind(reg, name, &wl_output_interface, 1);
+    p->registryName = name;
+    app.panels.push_back(p);
+    // hotplug after startup: bring the new panel up from the run loop
+    if (registryReady()) p->needsResurface = true;
+  }
+}
+
+static void registryGlobalRemove(void*, wl_registry*, uint32_t name) {
+  for (size_t i = 0; i < app.panels.size(); i++) {
+    Panel* p = app.panels[i];
+    if (p->output && p->registryName == name) {
+      teardownPanel(p);
+      wl_output_destroy(p->output);   // bound at v1: release() doesn't exist yet
+      app.panels.erase(app.panels.begin() + i);
+      delete p;
+      fprintf(stderr, "wintermute-field-daemon: output removed; %zu panel(s) remain\n",
+              app.panels.size());
+      return;
+    }
+  }
+}
+static const wl_registry_listener registryListener = {registryGlobal, registryGlobalRemove};
 
 static int sigPipe[2] = {-1, -1};
 static void onSignal(int) {
@@ -288,45 +406,6 @@ static bool pumpEvents(int timeoutMs) {
   return wl_display_dispatch_pending(app.display) >= 0;
 }
 
-// ── surface lifecycle: build + tear down, so we can rebuild in place ───────
-
-static void teardownSurface() {
-  if (app.zeroCopy) { cudaHostUnregister(app.pool); app.zeroCopy = false; }
-  if (app.devScratch) { cudaFree(app.devScratch); app.devScratch = nullptr; }
-  if (app.pool && app.pool != MAP_FAILED) { munmap(app.pool, app.poolSize); }
-  app.pool = nullptr; app.poolSize = 0;
-  for (int i = 0; i < 2; i++) { if (app.buffers[i]) wl_buffer_destroy(app.buffers[i]); app.buffers[i] = nullptr; }
-  app.devPtrs[0] = app.devPtrs[1] = nullptr;
-  if (app.layerSurface) { zwlr_layer_surface_v1_destroy(app.layerSurface); app.layerSurface = nullptr; }
-  if (app.surface) { wl_surface_destroy(app.surface); app.surface = nullptr; }
-  app.configured = false;
-}
-
-static bool setupSurface() {
-  app.configured = false;
-  app.surface = wl_compositor_create_surface(app.compositor);
-  // BOTTOM, not BACKGROUND: the wlr layer order is background < bottom < top,
-  // so this deterministically stacks ABOVE the QML wallpaper (which holds
-  // BACKGROUND as the always-present safety-net floor) and below windows. No
-  // creation-order race between the two renderers — the field wins when it's
-  // up, the QML floor shows through the instant it isn't. Never a blank desktop.
-  app.layerSurface = zwlr_layer_shell_v1_get_layer_surface(
-      app.layerShell, app.surface, nullptr,
-      ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM, "wintermute-field");
-  zwlr_layer_surface_v1_add_listener(app.layerSurface, &layerListener, nullptr);
-  zwlr_layer_surface_v1_set_anchor(app.layerSurface,
-      ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
-      ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
-  zwlr_layer_surface_v1_set_exclusive_zone(app.layerSurface, -1);
-  wl_surface_commit(app.surface);
-
-  for (int i = 0; !app.configured && i < 30; i++)
-    if (!pumpEvents(100)) return false;         // display died → let main exit→restart
-  if (!app.configured) return false;
-  if (app.width <= 0 || app.height <= 0) { app.width = 1920; app.height = 1080; }
-  return makeBuffers();
-}
-
 // ── main ──────────────────────────────────────────────────────────────────
 
 int main(int argc, char** argv) {
@@ -341,11 +420,18 @@ int main(int argc, char** argv) {
   app.P.paper   = f3(0.118f, 0.137f, 0.161f);
   app.P.accent  = f3(0.322f, 0.647f, 1.f);
   app.P.accentD = f3(0.502f, 0.824f, 1.f);
+  // morph endpoints start AT the defaults — a missing theme.json must render
+  // the default palette, not a morph toward zero-initialized black
+  app.palFrom[0] = app.palTo[0] = app.P.surface;
+  app.palFrom[1] = app.palTo[1] = app.P.paper;
+  app.palFrom[2] = app.palTo[2] = app.P.accent;
+  app.palFrom[3] = app.palTo[3] = app.P.accentD;
 
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     auto next = [&]() -> const char* { return i + 1 < argc ? argv[++i] : ""; };
     if (a == "--theme") app.themePath = next();
+    else if (a == "--scene") app.P.scene = std::string(next()) == "eyes" ? 1 : 0;
     else if (a == "--fps") app.fpsInterval = 1.0 / atof(next());
     else if (a == "--frames") app.framesLeft = atol(next());
   }
@@ -379,52 +465,67 @@ int main(int argc, char** argv) {
   wl_registry* reg = wl_display_get_registry(app.display);
   wl_registry_add_listener(reg, &registryListener, nullptr);
   wl_display_roundtrip(app.display);
-  if (!app.compositor || !app.shm || !app.layerShell) {
+  if (!registryReady()) {
     fprintf(stderr, "missing globals (compositor/shm/layer-shell)\n");
     return 1;
   }
+  // no outputs advertised (headless-ish): one compositor-chosen panel
+  if (app.panels.empty()) app.panels.push_back(new Panel());
 
-  if (!setupSurface()) { fprintf(stderr, "no configure from compositor\n"); return 1; }
-  fprintf(stderr, "wintermute-field-daemon: %dx%d, theme %s\n",
-          app.width, app.height, app.themePath.c_str());
-
-  renderFrame();
-  scheduleFrame();
+  int up = 0;
+  for (Panel* p : app.panels)
+    if (setupPanel(p)) {
+      fprintf(stderr, "wintermute-field-daemon: panel %dx%d\n", p->width, p->height);
+      renderFrame(p);
+      scheduleFrame(p);
+      up++;
+    } else {
+      p->needsResurface = true;   // retry from the run loop
+    }
+  if (!up) { fprintf(stderr, "no configure from compositor\n"); return 1; }
+  fprintf(stderr, "wintermute-field-daemon: %d/%zu panel(s) up, theme %s\n",
+          up, app.panels.size(), app.themePath.c_str());
 
   // The run loop. Frame callbacks pace us when visible; fully occluded we park
-  // in poll at 0% GPU. When the compositor tears our surface down we rebuild it
-  // in place (new size and all) rather than exiting — seamless across output
-  // reconfiguration, and immune to a reconfiguration STORM (no process churn).
+  // in poll at 0% GPU. When the compositor tears a surface down we rebuild
+  // that panel in place (new size and all) rather than exiting — seamless
+  // across output reconfiguration, and immune to a reconfiguration STORM.
   while (app.running) {
-    if (app.needsResurface) {
-      app.needsResurface = false;
-      teardownSurface();
+    Panel* broken = nullptr;
+    for (Panel* p : app.panels)
+      if (p->needsResurface) { broken = p; break; }
+    if (broken) {
+      broken->needsResurface = false;
+      teardownPanel(broken);
       timespec settle{0, 150 * 1000 * 1000};   // 150ms: let the reconfig settle
       nanosleep(&settle, nullptr);
-      if (!setupSurface()) {
-        teardownSurface();
+      if (!setupPanel(broken)) {
+        teardownPanel(broken);
         // Tell apart a DEAD display (compositor gone → exit, let systemd
-        // restart us fresh) from a live display with NO usable output yet
+        // restart us fresh) from a live display whose output isn't usable yet
         // (a monitor unplugged/disabled). In the latter we must NOT exit and
-        // churn through restarts — keep the process alive and retry until an
+        // churn through restarts — keep the process alive and retry until the
         // output returns. A signal still breaks us out via pumpEvents.
         if (wl_display_get_error(app.display) != 0) {
           fprintf(stderr, "wintermute-field-daemon: display gone; exit for restart\n");
           break;
         }
+        broken->needsResurface = true;           // retry this panel next pass
         timespec backoff{0, 500 * 1000 * 1000};
         nanosleep(&backoff, nullptr);
-        continue;                                // no output — wait, retry in place
+        continue;
       }
-      fprintf(stderr, "wintermute-field-daemon: surface rebuilt %dx%d\n", app.width, app.height);
-      renderFrame();
-      scheduleFrame();
+      fprintf(stderr, "wintermute-field-daemon: panel rebuilt %dx%d\n",
+              broken->width, broken->height);
+      renderFrame(broken);
+      scheduleFrame(broken);
       continue;
     }
     if (!pumpEvents(-1)) break;
   }
 
-  teardownSurface();
+  for (Panel* p : app.panels) { teardownPanel(p); delete p; }
+  app.panels.clear();
   if (app.nvmlOk) nvmlShutdown();
   wl_display_disconnect(app.display);
   return 0;

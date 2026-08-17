@@ -4,6 +4,7 @@
 int main(int argc, char** argv) {
   int w = 1920, h = 1080, frames = 1;
   bool bench = false, verify = false, cpu = false;
+  float spin = 0.f;
   std::string out = "field.ppm", theme;
 
   FieldParams P{};
@@ -24,12 +25,22 @@ int main(int argc, char** argv) {
     else if (a == "--power") P.power = atof(next());
     else if (a == "--frames") frames = atoi(next());
     else if (a == "--out") out = next();
+    else if (a == "--scene") P.scene = std::string(next()) == "eyes" ? 1 : 0;
+    else if (a == "--spin") spin = atof(next());
     else if (a == "--theme") theme = next();
     else if (a == "--bench") bench = true;
     else if (a == "--verify") verify = true;
     else if (a == "--cpu") cpu = true;
   }
   if (!theme.empty()) loadTheme(theme, P);
+  // --spin THETA: rotate the whole palette about the gray axis (radians) —
+  // the color spinor as a knob, and the visual test of spinColor itself
+  if (spin != 0.f) {
+    P.surface = spinColor(P.surface, spin);
+    P.paper   = spinColor(P.paper, spin);
+    P.accent  = spinColor(P.accent, spin);
+    P.accentD = spinColor(P.accentD, spin);
+  }
   P.aspect = (float)w / h;
 
   // --cpu: the same field, host-side — renders anywhere (including under
